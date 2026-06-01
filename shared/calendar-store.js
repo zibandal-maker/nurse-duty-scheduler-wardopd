@@ -201,8 +201,46 @@ var CalendarStore = (function(){
   }
   function lastUpdated() { try { return localStorage.getItem(UPD_KEY); } catch(e){ return null; } }
 
-  return { isHoliday:isHoliday, name:name, holidays:holidays,
-           build:build, load:load, refresh:refresh, lastUpdated:lastUpdated };
+  // ── 커스텀 이벤트 / 수동 공휴일 (듀티·외래 공유) ──
+  //   각 이벤트: { id, date:'YYYY-M-D', name, type:'event'|'holiday' }
+  //   type==='holiday' 면 isHoliday/공휴일 취급(수동 공휴일 — 갱신 안 될 때 대비).
+  var EVT_KEY = 'dv6_events';
+  var _events = null;
+  function _loadEvents(){
+    if(_events) return _events;
+    try{ var raw=localStorage.getItem(EVT_KEY); _events = raw?JSON.parse(raw):[]; }catch(e){ _events=[]; }
+    if(!Array.isArray(_events)) _events=[];
+    return _events;
+  }
+  function _saveEvents(){ try{ localStorage.setItem(EVT_KEY, JSON.stringify(_events||[])); }catch(e){} }
+  function _evtKey(y,m,d){ return y+'-'+m+'-'+d; }   // m: 1-based
+  function listEvents(){ return _loadEvents().slice(); }
+  function addEvent(date, name, type){
+    var arr=_loadEvents();
+    name=(name||'').trim(); if(!date||!name) return false;
+    // date 정규화 'YYYY-M-D'
+    var p=String(date).split('-');
+    var nd = p[0]+'-'+parseInt(p[1],10)+'-'+parseInt(p[2],10);
+    if(arr.some(function(e){return e.date===nd && e.name===name;})) return false;
+    arr.push({ id:Date.now()+Math.floor(Math.random()*1000), date:nd, name:name, type:(type==='holiday'?'holiday':'event') });
+    _saveEvents(); return true;
+  }
+  function removeEvent(id){
+    var arr=_loadEvents();
+    var n=arr.filter(function(e){return e.id!==id;});
+    if(n.length===arr.length) return false;
+    _events=n; _saveEvents(); return true;
+  }
+  function eventsOnDay(y,m,d){ return _loadEvents().filter(function(e){return e.date===_evtKey(y,m,d);}); }
+  // 수동 공휴일(type==='holiday')도 공휴일로 인정 — 기존 자동 공휴일과 합산.
+  function isHolidayAll(y,m,d){
+    if(isHoliday(y,m,d)) return true;
+    return _loadEvents().some(function(e){ return e.type==='holiday' && e.date===_evtKey(y,m,d); });
+  }
+
+  return { isHoliday:isHolidayAll, isAutoHoliday:isHoliday, name:name, holidays:holidays,
+           build:build, load:load, refresh:refresh, lastUpdated:lastUpdated,
+           listEvents:listEvents, addEvent:addEvent, removeEvent:removeEvent, eventsOnDay:eventsOnDay };
 })();
 
 // ── 전역 등록 (방식 B 핵심) ──────────────────────────────────────────

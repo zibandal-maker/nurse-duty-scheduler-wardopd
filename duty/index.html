@@ -2829,8 +2829,9 @@ function clearLocksThisMonth(){
 // isH/hn/isWH: 레거시 어댑터 (m은 0-based, cm과 동일). 국가 공휴일은 CalendarStore,
 //   병동별 커스텀 이벤트(customEvents)는 여기서 합산 (스펙 2.6 — 별도 도메인 유지).
 function isH(y,m,d){
+  // CalendarStore.isHoliday 는 자동공휴일 + 공유 수동공휴일(dv6_events type=holiday)까지 포함.
   if(CalendarStore.isHoliday(y, m+1, d)) return true;
-  // 커스텀 이벤트: date는 'YYYY-M-D' 형식, M은 1-based
+  // 듀티 자체 커스텀 이벤트(holiday 타입)
   return customEvents.some(function(e){
     return e.type==='holiday' && e.date===String(y)+'-'+String(m+1)+'-'+String(d);
   });
@@ -2838,10 +2839,12 @@ function isH(y,m,d){
 function hn(y,m,d){
   var base=CalendarStore.name(y, m+1, d);
   if(base) return base;
-  // 커스텀 이벤트: date는 'YYYY-M-D', M은 1-based
   var key=String(y)+'-'+String(m+1)+'-'+String(d);
+  // 듀티 자체 이벤트 우선, 없으면 공유 이벤트
   var evt=customEvents.find(function(e){return e.date===key;});
-  return evt?evt.name:'';
+  if(evt) return evt.name;
+  var shared=(CalendarStore.eventsOnDay?CalendarStore.eventsOnDay(y,m+1,d):[]);
+  return shared.length?shared[0].name:'';
 }
 function isWH(y,m,d){var w=dow(y,m,d);return w===0||w===6||isH(y,m,d);}
 // 이번 달 생일인 간호사 찾기 (월/일 기준)
@@ -2852,10 +2855,16 @@ function birthdaysOnDay(m,d){
     return parseInt(p[1])===m&&parseInt(p[2])===d;
   });
 }
-// 해당 날 커스텀 이벤트 목록
+// 해당 날 커스텀 이벤트 목록 — 듀티 자체 + 공유 이벤트(대시보드/외래) 합산
 function eventsOnDay(y,m,d){
   var key=y+'-'+m+'-'+d;
-  return customEvents.filter(function(e){return e.date===key;});
+  var own=customEvents.filter(function(e){return e.date===key;});
+  var shared=(CalendarStore.eventsOnDay?CalendarStore.eventsOnDay(y,m,d):[]);
+  // 공유 이벤트는 듀티 customEvents 와 형식 통일({date,name,type})하여 합치되, 동일 이름 중복 제거
+  shared.forEach(function(s){
+    if(!own.some(function(o){return o.name===s.name;})) own.push({date:key,name:s.name,type:s.type,_shared:true});
+  });
+  return own;
 }
 const yrs=(j)=>j?Math.floor((Date.now()-new Date(j))/(365.25*864e5)):0;
 

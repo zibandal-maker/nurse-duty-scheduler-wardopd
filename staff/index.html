@@ -66,6 +66,18 @@
   .photo-prev{width:54px;height:54px;border-radius:50%;background:var(--primary-bg);overflow:hidden;
        display:flex;align-items:center;justify-content:center;color:var(--primary-d);font-weight:700;flex:0 0 auto;}
   .photo-prev img{width:100%;height:100%;object-fit:cover;}
+  .photo-drop{border:1.5px dashed var(--line);border-radius:9px;padding:10px 12px;text-align:center;
+       transition:border-color .15s,background .15s;cursor:pointer;}
+  .photo-drop.over{border-color:var(--primary);background:var(--primary-bg);}
+  .photo-drop .pd-text{display:block;font-size:12px;color:var(--text2);}
+  .photo-drop .pd-pick{border:0;background:none;color:var(--primary);font-weight:600;cursor:pointer;font-size:12px;text-decoration:underline;padding:0;}
+  .photo-drop .pd-hint{display:block;font-size:10px;color:var(--text3);margin-top:3px;}
+  .date-input{display:flex;align-items:center;gap:0;position:relative;}
+  .date-input > input[type=text]{flex:1;border-top-right-radius:0;border-bottom-right-radius:0;}
+  .date-pick{border:1px solid var(--line);border-left:0;background:#fff;cursor:pointer;
+       padding:0 10px;align-self:stretch;border-radius:0 7px 7px 0;font-size:14px;}
+  .date-pick:hover{background:var(--primary-bg);}
+  .date-hidden{position:absolute;width:1px;height:1px;opacity:0;right:0;bottom:0;pointer-events:none;}
   .modal-foot{padding:12px 18px;border-top:1px solid var(--line);display:flex;align-items:center;gap:10px;background:var(--bg2);}
   .modal-foot .del{border:1px solid var(--warn);background:#fff;color:var(--warn);border-radius:var(--r);
        padding:7px 12px;cursor:pointer;font-family:inherit;font-weight:600;font-size:13px;}
@@ -123,7 +135,11 @@
         <div class="photo-prev" id="smPhotoPrev">?</div>
         <div style="flex:1;">
           <label>사진 (선택)</label>
-          <input type="file" id="smPhoto" accept="image/*">
+          <div id="smPhotoDrop" class="photo-drop">
+            <span class="pd-text">이미지를 끌어다 놓거나 <button type="button" id="smPhotoPick" class="pd-pick">파일 선택</button></span>
+            <span class="pd-hint">JPG·PNG·GIF·WebP · 최대 3MB</span>
+          </div>
+          <input type="file" id="smPhoto" accept="image/jpeg,image/png,image/gif,image/webp" style="display:none;">
         </div>
       </div>
       <div class="fld">
@@ -133,11 +149,19 @@
       <div class="fld-row">
         <div class="fld">
           <label>입사년도</label>
-          <input type="text" id="smJoin" placeholder="2020 또는 2020-03-01">
+          <div class="date-input">
+            <input type="text" id="smJoin" placeholder="2020 또는 2020-03-01">
+            <button type="button" class="date-pick" id="smJoinPick" title="달력에서 선택">📅</button>
+            <input type="date" id="smJoinPicker" class="date-hidden">
+          </div>
         </div>
         <div class="fld">
           <label>생일</label>
-          <input type="text" id="smBirth" placeholder="1990-05-21">
+          <div class="date-input">
+            <input type="text" id="smBirth" placeholder="1990-05-21">
+            <button type="button" class="date-pick" id="smBirthPick" title="달력에서 선택">📅</button>
+            <input type="date" id="smBirthPicker" class="date-hidden">
+          </div>
         </div>
       </div>
       <div class="fld">
@@ -355,13 +379,48 @@ Array.prototype.forEach.call(document.querySelectorAll('#smManager .opt'), funct
   });
 });
 
-// 사진 → base64 (간단; 용량 경고는 차기 다듬기)
-document.getElementById('smPhoto').addEventListener('change', function(e){
-  var f = e.target.files[0]; if(!f) return;
+// 사진 → base64 (검증: 형식·용량 3MB)
+var PHOTO_MAX = 3 * 1024 * 1024;
+var PHOTO_TYPES = ['image/jpeg','image/png','image/gif','image/webp'];
+function loadPhotoFile(f){
+  if(!f) return;
+  if(PHOTO_TYPES.indexOf(f.type)<0){ alert('이미지 형식만 가능합니다 (JPG·PNG·GIF·WebP).'); return; }
+  if(f.size > PHOTO_MAX){ alert('파일이 너무 큽니다. 최대 3MB까지 가능합니다.\n(현재 '+(f.size/1024/1024).toFixed(1)+'MB)'); return; }
   var r = new FileReader();
   r.onload = function(ev){ _photoData = ev.target.result; updatePhotoPrev(); };
   r.readAsDataURL(f);
-});
+}
+(function(){
+  var fileInput = document.getElementById('smPhoto');
+  var drop = document.getElementById('smPhotoDrop');
+  var pick = document.getElementById('smPhotoPick');
+  if(fileInput) fileInput.addEventListener('change', function(e){ loadPhotoFile(e.target.files[0]); e.target.value=''; });
+  if(pick) pick.addEventListener('click', function(){ fileInput.click(); });
+  if(drop){
+    drop.addEventListener('click', function(e){ if(e.target!==pick) fileInput.click(); });
+    ['dragenter','dragover'].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.add('over'); }); });
+    ['dragleave','drop'].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.remove('over'); }); });
+    drop.addEventListener('drop', function(e){
+      var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      loadPhotoFile(f);
+    });
+  }
+  // 날짜 선택기: 📅 클릭 → 숨은 date input → 선택 시 텍스트칸에 YYYY-MM-DD 기입
+  function wireDate(textId, pickBtnId, pickerId){
+    var t=document.getElementById(textId), b=document.getElementById(pickBtnId), p=document.getElementById(pickerId);
+    if(!t||!b||!p) return;
+    b.addEventListener('click', function(){
+      // 기존 텍스트가 유효 날짜면 초기값으로
+      var m=/^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec((t.value||'').trim());
+      if(m) p.value = m[1]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[3]).slice(-2);
+      if(p.showPicker) { try{ p.showPicker(); return; }catch(_){ } }
+      p.focus(); p.click();
+    });
+    p.addEventListener('change', function(){ if(p.value) t.value = p.value; });
+  }
+  wireDate('smJoin','smJoinPick','smJoinPicker');
+  wireDate('smBirth','smBirthPick','smBirthPicker');
+})();
 
 document.getElementById('smSave').addEventListener('click', function(){
   var name = document.getElementById('smName').value.trim();

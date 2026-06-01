@@ -131,6 +131,7 @@
   table.cal td.today{outline:2px solid var(--today);outline-offset:-2px;}
   .daynum{font-size:12px;font-weight:700;color:var(--text);}
   .daycake{font-size:11px;line-height:1;}
+  .dayevt{display:block;font-size:9px;line-height:1.2;margin-top:1px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   td.blank .daynum{color:var(--text3);}
   td.sun .daynum{color:var(--warn-d);} td.sat .daynum{color:#185FA5;}
   .holiname{display:block;font-size:9px;color:var(--warn-d);line-height:1.15;margin-top:1px;
@@ -948,6 +949,14 @@ function renderCalendar(){
             +   '<div class="dayhead"><span class="daynum">'+d2+'</span>'
             +   ((function(){var b=_birthdaysOnDay(d2);return b.length?'<span class="daycake" title="'+escapeHtml(b.map(function(x){return x.name;}).join(', '))+' 생일">🎂</span>':'';})())
             +   (hname ? '<span class="holiname">'+escapeHtml(hname)+'</span>' : '')+'</div>'
+            +   ((function(){
+                  var evs = CalendarStore.eventsOnDay ? CalendarStore.eventsOnDay(viewY, viewM+1, d2) : [];
+                  if(!evs.length) return '';
+                  return evs.map(function(e){
+                    var c = e.type==='holiday' ? 'var(--warn-d)' : '#185FA5';
+                    return '<span class="dayevt" style="color:'+c+'" title="'+escapeHtml(e.name)+'">'+(e.type==='holiday'?'🔴':'📌')+' '+escapeHtml(e.name)+'</span>';
+                  }).join('');
+                })())
             +   renderDayStaff(d2)
             + '</td>';
     }

@@ -187,10 +187,30 @@
         <span style="font-size:15px;font-weight:700;color:var(--navy-deep);">📅 공휴일 관리</span>
         <span id="holUpd" style="font-size:11px;color:var(--muted);"></span>
         <button id="holRefresh" style="margin-left:auto;padding:7px 14px;border:1px solid var(--navy);background:var(--navy);color:#fff;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;">공휴일 갱신</button>
+        <button id="evtToggle" style="padding:7px 14px;border:1px solid var(--line);background:#fff;color:var(--navy-deep);border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;">＋ 행사·공휴일 직접 추가</button>
       </div>
       <p style="margin:8px 0 0;font-size:12px;color:var(--muted);line-height:1.5;">
-        모든 부서(듀티·외래)가 같은 공휴일 데이터를 공유합니다. 여기서 한 번 갱신하면 전 부서에 반영됩니다.
+        모든 부서(듀티·외래)가 같은 공휴일·행사 데이터를 공유합니다. 여기서 한 번 갱신·추가하면 전 부서에 반영됩니다.
       </p>
+      <!-- 이벤트/수동공휴일 추가 영역 (토글) -->
+      <div id="evtBox" style="display:none;margin-top:12px;padding:12px;border:1px dashed var(--line);border-radius:10px;background:#fafcff;">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+          <label style="font-size:11px;color:var(--muted);font-weight:600;">날짜<br>
+            <input id="evtDate" type="date" style="margin-top:3px;padding:6px;border:1px solid var(--line);border-radius:7px;font-size:13px;"></label>
+          <label style="font-size:11px;color:var(--muted);font-weight:600;flex:1;min-width:140px;">이름<br>
+            <input id="evtName" type="text" maxlength="30" placeholder="예: 병원 창립기념일" style="margin-top:3px;width:100%;padding:6px;border:1px solid var(--line);border-radius:7px;font-size:13px;box-sizing:border-box;"></label>
+          <label style="font-size:11px;color:var(--muted);font-weight:600;">종류<br>
+            <select id="evtType" style="margin-top:3px;padding:6px;border:1px solid var(--line);border-radius:7px;font-size:13px;">
+              <option value="event">행사(표시만)</option>
+              <option value="holiday">공휴일(근무 제외)</option>
+            </select></label>
+          <button id="evtAdd" style="padding:7px 14px;border:0;background:var(--navy);color:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">추가</button>
+        </div>
+        <p style="margin:8px 0 0;font-size:11px;color:var(--muted);line-height:1.5;">
+          “행사”는 달력에 표시만 됩니다. “공휴일”은 근무 자동배치에서 제외됩니다(공휴일 갱신이 안 될 때 직접 지정용).
+        </p>
+        <div id="evtList" style="margin-top:10px;font-size:12px;"></div>
+      </div>
       <div id="holList" style="margin-top:10px;font-size:12px;color:var(--text2);line-height:1.7;"></div>
     </div>
 
@@ -378,6 +398,49 @@
       CalendarStore.refresh()
         .then(function(cnt){ btn.textContent='공휴일 갱신'; btn.disabled=false; refresh(); alert('공휴일 갱신 완료 — '+cnt+'개 로드 ✓'); })
         .catch(function(err){ btn.textContent='공휴일 갱신'; btn.disabled=false; alert('갱신 실패: '+err.message); });
+    });
+
+    // 행사·수동공휴일 관리
+    var evtBox=document.getElementById('evtBox'), evtList=document.getElementById('evtList');
+    var toggleBtn=document.getElementById('evtToggle');
+    function fmtEvtDate(s){ var p=s.split('-'); return parseInt(p[1],10)+'월 '+parseInt(p[2],10)+'일'; }
+    function renderEvents(){
+      var evs = CalendarStore.listEvents ? CalendarStore.listEvents() : [];
+      if(!evs.length){ evtList.innerHTML='<span style="color:var(--muted)">등록된 행사·수동 공휴일이 없습니다.</span>'; return; }
+      evs.sort(function(a,b){ return a.date<b.date?-1:(a.date>b.date?1:0); });
+      evtList.innerHTML = evs.map(function(e){
+        var tag = e.type==='holiday'
+          ? '<span style="font-size:10px;background:#FCEBEB;color:#A32D2D;padding:1px 6px;border-radius:6px;margin-left:6px;">공휴일</span>'
+          : '<span style="font-size:10px;background:#E6F1FB;color:#185FA5;padding:1px 6px;border-radius:6px;margin-left:6px;">행사</span>';
+        return '<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid #eef2f7;">'
+          + '<span style="font-weight:600;color:var(--navy-deep);min-width:80px;">'+fmtEvtDate(e.date)+'</span>'
+          + '<span style="flex:1;">'+escapeHtml(e.name)+tag+'</span>'
+          + '<button data-id="'+e.id+'" class="evtDel" style="border:0;background:none;color:#C0392B;cursor:pointer;font-size:14px;" title="삭제">✕</button>'
+          + '</div>';
+      }).join('');
+      Array.prototype.forEach.call(evtList.querySelectorAll('.evtDel'), function(b){
+        b.addEventListener('click', function(){
+          CalendarStore.removeEvent(parseInt(b.getAttribute('data-id'),10));
+          renderEvents(); renderList();
+        });
+      });
+    }
+    if(toggleBtn) toggleBtn.addEventListener('click', function(){
+      var show = evtBox.style.display==='none';
+      evtBox.style.display = show?'block':'none';
+      if(show) renderEvents();
+    });
+    var evtAdd=document.getElementById('evtAdd');
+    if(evtAdd) evtAdd.addEventListener('click', function(){
+      var date=document.getElementById('evtDate').value;
+      var name=document.getElementById('evtName').value;
+      var type=document.getElementById('evtType').value;
+      if(!date){ alert('날짜를 선택하세요'); return; }
+      if(!name.trim()){ alert('이름을 입력하세요'); return; }
+      if(CalendarStore.addEvent(date, name, type)){
+        document.getElementById('evtName').value='';
+        renderEvents(); renderList();
+      } else { alert('이미 같은 행사가 있거나 입력이 올바르지 않습니다.'); }
     });
   })();
 </script>
