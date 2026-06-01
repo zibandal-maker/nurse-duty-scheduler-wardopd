@@ -4,7 +4,7 @@
 (function (g) {
   'use strict';
 
-  var APP_VERSION = 'v6.4.49';
+  var APP_VERSION = 'v6.4.50';
   var BUILD_DATE  = '2026-05-31';
 
   g.APP_VERSION = APP_VERSION;
