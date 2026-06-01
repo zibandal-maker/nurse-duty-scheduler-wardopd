@@ -214,6 +214,20 @@
       <div id="holList" style="margin-top:10px;font-size:12px;color:var(--text2);line-height:1.7;"></div>
     </div>
 
+    <div id="backupPanel" style="margin-top:18px;padding:16px 18px;border:1px solid var(--line);border-radius:12px;background:#fff;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <span style="font-size:15px;font-weight:700;color:var(--navy-deep);">💾 전체 데이터 백업 · 이전</span>
+        <button id="btnFullBackup" style="margin-left:auto;padding:7px 14px;border:1px solid var(--navy);background:var(--navy);color:#fff;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;">↑ 전체 백업 (파일 저장)</button>
+        <button id="btnFullRestore" style="padding:7px 14px;border:1px solid var(--line);background:#fff;color:var(--navy-deep);border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;">↓ 복원 (파일 열기)</button>
+        <input type="file" id="fullRestoreFile" accept="application/json,.json" style="display:none;">
+      </div>
+      <p style="margin:8px 0 0;font-size:12px;color:var(--muted);line-height:1.5;">
+        모든 데이터(직원·부서·전 부서 근무표·공휴일·행사·설정)를 파일 하나로 저장합니다.
+        다른 컴퓨터에서 “복원”하면 이 파일과 똑같은 상태로 재현됩니다 — 시연·이전용.
+        <b style="color:var(--warn-d,#A32D2D)">복원은 그 컴퓨터의 기존 데이터를 전부 덮어씁니다.</b>
+      </p>
+    </div>
+
     <p class="foot">직원은 한 부서에 소속되며, 이름·생일·연차 등 기본 정보는 전 부서가 공유합니다.</p>
   </div>
 
@@ -441,6 +455,73 @@
         document.getElementById('evtName').value='';
         renderEvents(); renderList();
       } else { alert('이미 같은 행사가 있거나 입력이 올바르지 않습니다.'); }
+    });
+  })();
+
+  // ── 전체 데이터 백업 / 복원 (시연·이전용) ──
+  (function(){
+    // 우리 앱이 쓰는 키 접두사. 이 접두사로 시작하는 모든 localStorage 키를 통째로 담음
+    //  (부서별 동적 키 cal_sched_<id>, dv6_s_<ward> 등도 자동 포함)
+    var PREFIXES = ['dv6_', 'cal_'];
+    function isOurKey(k){ return PREFIXES.some(function(p){ return k.indexOf(p)===0; }); }
+    function collectAll(){
+      var out={};
+      for(var i=0;i<localStorage.length;i++){
+        var k=localStorage.key(i);
+        if(isOurKey(k)) out[k]=localStorage.getItem(k);
+      }
+      return out;
+    }
+    var bBtn=document.getElementById('btnFullBackup');
+    var rBtn=document.getElementById('btnFullRestore');
+    var rFile=document.getElementById('fullRestoreFile');
+
+    if(bBtn) bBtn.addEventListener('click', function(){
+      var payload={
+        app:'duty-outpatient-scheduler',
+        kind:'full-backup',
+        version: (window.APP_VERSION||''),
+        exportedAt: new Date().toISOString(),
+        keys: collectAll()
+      };
+      var blob=new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
+      var url=URL.createObjectURL(blob);
+      var a=document.createElement('a');
+      var d=new Date(), pad=function(n){return ('0'+n).slice(-2);};
+      a.href=url;
+      a.download='스케줄러_전체백업_'+d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+'_'+pad(d.getHours())+pad(d.getMinutes())+'.json';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+      var cnt=Object.keys(payload.keys).length;
+      alert('전체 백업 완료 — '+cnt+'개 항목을 파일로 저장했습니다.\n이 파일을 다른 컴퓨터로 옮겨 “복원”하세요.');
+    });
+
+    if(rBtn) rBtn.addEventListener('click', function(){ rFile.click(); });
+    if(rFile) rFile.addEventListener('change', function(e){
+      var f=e.target.files[0]; if(!f){ return; }
+      var rd=new FileReader();
+      rd.onload=function(ev){
+        var data;
+        try{ data=JSON.parse(ev.target.result); }catch(_){ alert('백업 파일을 읽을 수 없습니다. 올바른 JSON 백업 파일인지 확인하세요.'); rFile.value=''; return; }
+        if(!data || data.kind!=='full-backup' || !data.keys){
+          alert('이 파일은 이 앱의 전체 백업 파일이 아닙니다.'); rFile.value=''; return;
+        }
+        var cnt=Object.keys(data.keys).length;
+        var when=data.exportedAt ? new Date(data.exportedAt).toLocaleString() : '알 수 없음';
+        if(!confirm('복원하면 이 컴퓨터의 기존 데이터(직원·부서·근무표·공휴일 등)가 모두 지워지고\n백업 파일의 상태로 덮어써집니다.\n\n· 백업 시점: '+when+'\n· 항목 수: '+cnt+'개\n\n계속할까요?')) { rFile.value=''; return; }
+        // 1) 기존 우리 키 제거
+        var toDel=[];
+        for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(isOurKey(k)) toDel.push(k); }
+        toDel.forEach(function(k){ localStorage.removeItem(k); });
+        // 2) 백업 키 주입
+        Object.keys(data.keys).forEach(function(k){
+          if(isOurKey(k)) localStorage.setItem(k, data.keys[k]);
+        });
+        rFile.value='';
+        alert('복원 완료 — '+cnt+'개 항목을 불러왔습니다.\n화면을 새로고침합니다.');
+        location.reload();
+      };
+      rd.readAsText(f);
     });
   })();
 </script>
