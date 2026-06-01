@@ -11,7 +11,7 @@
   *{box-sizing:border-box;}
   body{margin:0;font-family:var(--sans);
        background:var(--bg2);color:var(--text);line-height:1.5;}
-  .wrap{max-width:var(--wrap-w, 1100px);margin:0 auto;padding:24px 16px 48px;transition:max-width .15s;}
+  .wrap{max-width:min(var(--wrap-w, 1400px), 97vw);margin:0 auto;padding:24px 16px 48px;transition:max-width .15s;}
   /* 캘린더 중심 레이아웃: 좌측 사이드(간호사 관리) + 메인(캘린더) */
   .layout{display:flex;gap:18px;align-items:flex-start;}
   .layout .side-col{flex:0 0 270px;order:-1;position:sticky;top:16px;}
@@ -135,18 +135,18 @@
   .holiname{display:block;font-size:9px;color:var(--warn-d);line-height:1.15;margin-top:1px;
        white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   /* 의사표형 셀 (M3c) — 날짜 칸 안에 근무자 세로 쌓기 + 오전/오후 좌우분할 */
-  table.cal td.daycal{height:auto;min-height:64px;vertical-align:top;padding:3px;}
+  table.cal td.daycal{height:auto;min-height:78px;vertical-align:top;padding:4px;}
   .dayhead{display:flex;align-items:baseline;justify-content:center;gap:4px;margin-bottom:2px;}
-  .staffwrap{display:flex;flex-direction:column;gap:1px;}
-  .staffrow{display:grid;grid-template-columns:34px 1fr 1fr;align-items:stretch;
-       gap:2px;font-size:10px;}
+  .staffwrap{display:flex;flex-direction:column;gap:2px;}
+  .staffrow{display:grid;grid-template-columns:46px 1fr 1fr;align-items:stretch;
+       gap:3px;font-size:11px;}
   .staffrow .sname{font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;
-       white-space:nowrap;align-self:center;}
-  .staffrow .slot{display:flex;align-items:center;justify-content:center;}
-  .staffrow .slot .badge{display:block;width:100%;border-radius:3px;padding:1px 2px;
-       font-size:9px;font-weight:600;text-align:center;overflow:hidden;text-overflow:ellipsis;
+       white-space:nowrap;align-self:center;padding:2px 4px;}
+  .staffrow .slot{display:flex;align-items:center;justify-content:center;min-height:20px;}
+  .staffrow .slot .badge{display:block;width:100%;border-radius:4px;padding:2px 3px;
+       font-size:10px;font-weight:600;text-align:center;overflow:hidden;text-overflow:ellipsis;
        white-space:nowrap;}
-  .staffrow .slot .empty{color:var(--text3);font-size:9px;}
+  .staffrow .slot .empty{color:var(--text3);font-size:10px;}
   .staffrow .slot.am{border-right:1px dashed var(--line);}
   /* 슬롯형 셀 (M3d-3) */
   .slotwrap{display:flex;flex-direction:column;gap:2px;}
@@ -1406,19 +1406,21 @@ document.getElementById('setModal').addEventListener('click', function(e){ if(e.
 
 // ① 캘린더 폭 조절 (사용자 지정, localStorage 저장)
 var _CAL_W_KEY = 'cal_wrap_width';
-var _CAL_W_STEPS = [760, 900, 1100, 1300, 1500, 1800];
+var _CAL_W_STEPS = [1000, 1200, 1400, 1600, 1900, 2200, 2600];   // 와이드 화면 대응
+var _CAL_W_DEFAULT = 1400;
 function _applyCalWidth(px){
+  // 화면보다 넓게 지정되면 화면 폭(여백 제외)까지만 — 와이드 모니터를 꽉 채움
   document.documentElement.style.setProperty('--wrap-w', px+'px');
   try{ localStorage.setItem(_CAL_W_KEY, String(px)); }catch(_){}
 }
 function _curCalWidth(){
   var v = 0; try{ v = parseInt(localStorage.getItem(_CAL_W_KEY),10); }catch(_){}
-  return (v && !isNaN(v)) ? v : 1100;
+  return (v && !isNaN(v)) ? v : _CAL_W_DEFAULT;
 }
 function _stepCalWidth(dir){
   var cur=_curCalWidth();
   var i=_CAL_W_STEPS.indexOf(cur);
-  if(i<0){ // 가장 가까운 단계 찾기
+  if(i<0){
     i=0; var best=1e9;
     _CAL_W_STEPS.forEach(function(s,idx){ var d=Math.abs(s-cur); if(d<best){best=d;i=idx;} });
   }
