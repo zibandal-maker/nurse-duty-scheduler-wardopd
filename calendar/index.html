@@ -323,8 +323,6 @@
       </thead>
       <tbody id="calBody"></tbody>
     </table>
-    <p class="note">월별 달력 골격입니다. 날짜·주말·공휴일이 표시됩니다.
-      각 칸에 인력별 오전/오후 근무를 넣는 작업은 다음 단계(M2d).</p>
   </div>
 
   <!-- A-2: 명단형 (사람×날짜) — 슬롯 칠하기 입력. 팔레트로 붓 선택 후 칸 클릭. -->
@@ -347,10 +345,8 @@
         <span><i style="background:rgba(24,95,165,.12)"></i>토요일(근무)</span>
         <span><i style="background:#fae8e8"></i>일요일</span>
         <span><i style="background:var(--warn-bg)"></i>공휴일</span>
-        <span>칸: 위=오전 / 아래=오후 (입력은 M3)</span>
+        <span>칸: 위=오전 / 아래=오후</span>
       </div>
-      <p class="note">달력과 같은 달을 보여줍니다. 각 칸 오전/오후 2분할 — 지금은 빈 칸,
-        근무 입력·저장은 다음 단계(M3).</p>
     </div>
   </details>
 
@@ -906,9 +902,14 @@ function renderCalendar(){
   // 뒤쪽 빈 칸 (7의 배수로 맞춤)
   while(cells.length % 7 !== 0) cells.push(null);
 
-  // 그 달 근무 데이터 + 사람 이름 맵 준비 (M3c)
+  // 그 달 근무 데이터 + 사람 이름·색 맵 준비 (M3c)
   var nameOf = {};
-  (window.PersonsStore ? PersonsStore.list() : []).forEach(function(p){ nameOf[p.personId]=p.name||''; });
+  var colorOf = {};
+  (window.PersonsStore ? PersonsStore.list() : []).forEach(function(p){
+    nameOf[p.personId]=p.name||'';
+    var da = p.deptAttrs && p.deptAttrs[WARD_ID];
+    if(da && da.color) colorOf[p.personId]=da.color;
+  });
 
   var html = '';
   for(var r=0; r<cells.length; r+=7){
@@ -975,8 +976,12 @@ function renderCalendar(){
       var cell = CalScheduleStore.get(pid, viewY, viewM, d);
       var hasData = (cell.am&&cell.am.code)||(cell.pm&&cell.pm.code);
       if(noSlot && !hasData) return '';   // 빈 일요일/공휴일 칸은 사람 행 안 만듦
+      var pcol = colorOf[pid] || '';
+      var nameStyle = pcol
+        ? ' style="background:'+pcol+'22;border-left:3px solid '+pcol+';padding-left:5px;border-radius:3px;"'
+        : '';
       return '<div class="staffrow">'
-        +   '<span class="sname">'+escapeHtml(nameOf[pid]||p.name||'?')+'</span>'
+        +   '<span class="sname"'+nameStyle+'>'+escapeHtml(nameOf[pid]||p.name||'?')+'</span>'
         +   '<span class="slot am slotcell" data-pid="'+pid+'" data-day="'+d+'" data-slot="am">'+slotBadge(cell.am)+'</span>'
         +   '<span class="slot pm slotcell" data-pid="'+pid+'" data-day="'+d+'" data-slot="pm">'+slotBadge(cell.pm)+'</span>'
         + '</div>';
