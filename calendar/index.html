@@ -38,6 +38,13 @@
   details.addsec-cal:hover > summary{color:var(--primary-d);}
   details.addsec-cal[open]{border-style:solid;border-color:var(--primary);background:var(--bg);}
   .ncard.sel2{border-color:var(--primary);border-width:1.5px;}
+  .ncard.sel2{position:relative;z-index:50;overflow:visible;}
+  .nce{display:none;background:var(--bg);padding:12px;border-top:0.5px solid var(--bd2);}
+  /* 편집 패널은 카드 위에 떠서 펼쳐짐 — 레이아웃(달력)을 밀지 않음 */
+  .ncard.sel2 .nce{display:block;position:absolute;left:0;top:100%;width:300px;max-width:84vw;
+       border:1.5px solid var(--primary);border-radius:0 0 10px 10px;border-top:0;
+       box-shadow:0 10px 28px rgba(20,50,90,.20);z-index:60;max-height:70vh;overflow:auto;}
+  @media(max-width:820px){ .ncard.sel2 .nce{width:84vw;} }
   .nct{display:flex;align-items:center;gap:7px;padding:8px 9px;}
   .navatar-ph{width:34px;height:34px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;border:1.5px solid var(--bd2);cursor:pointer;}
   .drag-handle{cursor:grab;color:var(--text3);padding:0 4px;font-size:14px;flex-shrink:0;user-select:none;}
@@ -51,8 +58,6 @@
   .ncn{font-size:12px;font-weight:700;display:flex;align-items:center;gap:4px;flex-wrap:wrap;}
   .rbadge{font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;background:#eef2fb;color:var(--primary-d);}
   .ncs{font-size:10px;color:var(--text3);margin-top:2px;}
-  .nce{display:none;background:var(--bg2);padding:10px;border-top:0.5px solid var(--bd2);}
-  .ncard.sel2 .nce{display:block;}
   .efr{display:flex;flex-direction:column;gap:3px;margin-bottom:7px;}
   .efr label{font-size:10px;color:var(--text3);font-weight:600;}
   .efr select{width:100%;padding:4px 6px;border:0.5px solid var(--bd2);border-radius:5px;font-size:12px;background:var(--bg);color:var(--text);}
@@ -304,6 +309,9 @@
         <button class="toolbtn" id="calWide" title="넓게" style="padding:2px 8px">＋</button>
       </span>
     </div>
+    <div class="palette-box" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;align-items:center;padding:8px 10px;background:var(--bg2);border:1px solid var(--bd);border-radius:9px;">
+      <span style="font-size:11px;color:var(--text2);margin-right:2px;font-weight:600;">붓:</span>
+    </div>
     <table class="cal" id="calTable">
       <colgroup>
         <col class="col-sun"><col><col><col><col><col><col class="col-sat">
@@ -326,7 +334,7 @@
       📋 명단형 (사람 × 날짜) <span id="sheetMonth" style="text-transform:none;color:var(--primary);font-weight:700;"></span>
     </summary>
     <div style="margin-top:12px;">
-      <div id="palette" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;align-items:center;">
+      <div id="palette" class="palette-box" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;align-items:center;">
         <span style="font-size:11px;color:var(--text2);margin-right:2px;">붓:</span>
       </div>
       <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">
@@ -646,16 +654,44 @@ function _memberEditPanel(p){
       + 'style="display:inline-block;width:18px;height:18px;border-radius:50%;background:'+c+';cursor:pointer;'
       + 'border:'+(c===col?'2px solid #000':'1px solid #ccc')+';margin:1px"></span>';
   }).join('');
-  // 요일고정: 각 요일에 코드 선택 (없음/근무/반차/연차/OFF 등)
+  // 요일고정 v2: 요일별 오전/오후 코드 + 적용 주차(1~5)
   var fwCodes = [['','—'],['work','근무'],['half','반차'],['vac','연차'],['off','OFF']];
-  var fwRows = WD_KEYS.map(function(wk,i){
-    var cur = fw[wk] || '';
+  function fwSel(wk, slot, cur){
     var opts = fwCodes.map(function(c){ return '<option value="'+c[0]+'"'+(c[0]===cur?' selected':'')+'>'+c[1]+'</option>'; }).join('');
-    return '<label style="display:inline-flex;flex-direction:column;align-items:center;font-size:10px;gap:2px">'
-      + '<span style="color:'+(i===0?'#C0392B':(i===6?'#1E6DBF':'var(--text2)'))+'">'+WD_LABELS[i]+'</span>'
-      + '<select onchange="outSetFixedWeekday(\''+p.personId+'\',\''+wk+'\',this.value)" '
-      + 'style="font-size:11px;padding:1px;border:1px solid var(--bd2);border-radius:4px">'+opts+'</select></label>';
+    return '<select onchange="outSetFWSlot(\''+p.personId+'\',\''+wk+'\',\''+slot+'\',this.value)" '
+      + 'style="font-size:11px;padding:1px;border:1px solid var(--bd2);border-radius:4px;width:52px">'+opts+'</select>';
+  }
+  // 월~토 (일요일은 외래 근무 없음)
+  var fwRows = [1,2,3,4,5,6].map(function(i){
+    var wk = WD_KEYS[i];
+    var rule = _normFW(fw[wk]) || {am:'',pm:'',weeks:[]};
+    var wkBoxes = [1,2,3,4,5].map(function(n){
+      var on = rule.weeks.indexOf(n)>=0;
+      return '<label style="display:inline-flex;align-items:center;gap:1px;cursor:pointer;font-size:9px">'
+        + '<input type="checkbox" '+(on?'checked':'')+' style="margin:0;width:12px;height:12px" '
+        + 'onchange="outSetFWWeek(\''+p.personId+'\',\''+wk+'\','+n+',this.checked)">'+n+'</label>';
+    }).join('');
+    var hasRule = rule.am || rule.pm;
+    return '<tr>'
+      + '<td style="color:'+(i===6?'#1E6DBF':'var(--text2)')+';font-weight:600;padding:2px 4px">'+WD_LABELS[i]+'</td>'
+      + '<td style="padding:2px 2px">'+fwSel(wk,'am',rule.am)+'</td>'
+      + '<td style="padding:2px 2px">'+fwSel(wk,'pm',rule.pm)+'</td>'
+      + '<td style="padding:2px 4px"><span style="display:inline-flex;gap:4px;opacity:'+(hasRule?'1':'.4')+'">'+wkBoxes+'</span></td>'
+      + '</tr>';
   }).join('');
+  var basis = _weekBasis();
+  var fwTable = '<table style="border-collapse:collapse;font-size:11px;width:100%">'
+    + '<thead><tr style="color:var(--text3);font-size:9px">'
+    + '<th style="text-align:left;padding:1px 4px">요일</th><th style="padding:1px 2px">오전</th><th style="padding:1px 2px">오후</th>'
+    + '<th style="text-align:left;padding:1px 4px">적용 주차</th></tr></thead>'
+    + '<tbody>'+fwRows+'</tbody></table>'
+    + '<div style="font-size:9.5px;color:var(--text3);margin-top:5px;line-height:1.5">'
+    + '주차 미선택 = 매주 반복. 예) “2·4주 토요일 휴무” → 토요일 오전·오후 OFF + 주차 2,4 체크.</div>'
+    + '<label style="font-size:9.5px;color:var(--text2);display:flex;align-items:center;gap:4px;margin-top:5px">주차 기준: '
+    + '<select onchange="outSetWeekBasis(this.value)" style="font-size:10px;padding:1px;border:1px solid var(--bd2);border-radius:4px">'
+    + '<option value="occurrence"'+(basis==='occurrence'?' selected':'')+'>그 요일 첫 등장이 1주차</option>'
+    + '<option value="dom"'+(basis==='dom'?' selected':'')+'>1일 포함 주가 1주차</option>'
+    + '</select></label>';
 
   return '<div class="memedit" style="font-size:12px">'
     + '<div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap">'
@@ -664,8 +700,8 @@ function _memberEditPanel(p){
     +     '<input type="checkbox" '+(preg?'checked':'')+' onchange="outSetPregnant(\''+p.personId+'\',this.checked)"> 임산부 🤰</label>'
     + '</div>'
     + '<div style="margin-bottom:8px">색상<br><div class="cgrid">'+colorDots+'</div></div>'
-    + '<div style="margin-bottom:8px">요일 고정근무 <span style="color:var(--text3);font-size:10px">(매주 반복 — 달력 자동 반영)</span><br>'
-    +   '<div style="display:flex;gap:4px;margin-top:4px">'+fwRows+'</div></div>'
+    + '<div style="margin-bottom:8px">요일 고정근무 <span style="color:var(--text3);font-size:10px">(오전·오후/주차별 — 달력 자동 반영)</span>'
+    +   '<div style="margin-top:4px">'+fwTable+'</div></div>'
     + '<button onclick="outRemoveMember(\''+p.personId+'\')" style="border:1px solid var(--warn);background:#fff;color:var(--warn);border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer">이 부서에서 빼기</button>'
     + '</div>';
 }
@@ -685,11 +721,64 @@ function _setDeptAttr(pid, mutate){
 function outSetRole(pid, role){ _setDeptAttr(pid, function(da){ da.role=role; }); }
 function outSetPregnant(pid, on){ _setDeptAttr(pid, function(da){ da.attributes.pregnant=!!on; }); }
 function outSetColor(pid, col){ _setDeptAttr(pid, function(da){ da.color=col; }); }
-function outSetFixedWeekday(pid, wk, code){
+function outSetFWSlot(pid, wk, slot, code){
   _setDeptAttr(pid, function(da){
     if(!da.attributes.fixedWeekday) da.attributes.fixedWeekday={};
-    if(code) da.attributes.fixedWeekday[wk]=code; else delete da.attributes.fixedWeekday[wk];
+    var cur=_normFW(da.attributes.fixedWeekday[wk]) || {am:'',pm:'',weeks:[]};
+    cur[slot]=code||'';
+    if(!cur.am && !cur.pm) delete da.attributes.fixedWeekday[wk];   // 둘 다 비면 규칙 제거
+    else da.attributes.fixedWeekday[wk]=cur;
   });
+}
+function outSetFWWeek(pid, wk, n, on){
+  _setDeptAttr(pid, function(da){
+    if(!da.attributes.fixedWeekday) da.attributes.fixedWeekday={};
+    var cur=_normFW(da.attributes.fixedWeekday[wk]) || {am:'',pm:'',weeks:[]};
+    var idx=cur.weeks.indexOf(n);
+    if(on && idx<0) cur.weeks.push(n);
+    else if(!on && idx>=0) cur.weeks.splice(idx,1);
+    cur.weeks.sort(function(a,b){return a-b;});
+    da.attributes.fixedWeekday[wk]=cur;
+  });
+}
+function outSetWeekBasis(v){
+  _setWeekBasis(v);
+  applyFixedWeekday();
+  if(typeof renderCalendar==='function'){ _calOnly=true; try{renderCalendar();}finally{_calOnly=false;} }
+  renderRoster();
+}
+
+/* ── 요일고정 v2: 오전/오후 분리 + 주차 선택 ──
+   fw[wk] 형태:
+     구버전(문자열)  'half'          → {am:'', pm:'half', weeks:[]}  (반차는 오후만)
+                      'work'/'off'/'vac' → {am:code, pm:code, weeks:[]}
+     신버전(객체)    {am, pm, weeks:[1,3]}   weeks 비면 매주
+*/
+function _normFW(v){
+  if(!v) return null;
+  if(typeof v==='string'){
+    if(v==='half') return {am:'', pm:'half', weeks:[]};
+    return {am:v, pm:v, weeks:[]};
+  }
+  return { am:v.am||'', pm:v.pm||'', weeks:Array.isArray(v.weeks)?v.weeks.slice():[] };
+}
+// 주차 기준 옵션: 'occurrence'(기본=그 요일이 그달 처음 도는 날이 1주차) | 'dom'(1일 포함 주가 1주차)
+function _weekBasis(){
+  try{ return localStorage.getItem('cal_week_basis_'+WARD_ID) || 'occurrence'; }catch(_){ return 'occurrence'; }
+}
+function _setWeekBasis(v){
+  try{ localStorage.setItem('cal_week_basis_'+WARD_ID, v); }catch(_){}
+}
+// 그 날짜(d)가 자기 요일의 '몇 번째'인지 (1부터). 기준에 따라 계산.
+function _weekIndexOfWeekday(y, m, d){
+  var basis=_weekBasis();
+  if(basis==='dom'){
+    // 1일이 포함된 주를 1주차로: 캘린더 주 단위(일요일 시작)
+    var firstDow=dow(y,m,1);
+    return Math.floor((d + firstDow - 1)/7) + 1;
+  }
+  // occurrence(기본): 같은 요일이 그달에서 몇 번째로 등장하는지
+  return Math.floor((d-1)/7) + 1;
 }
 
 /* A-4: 요일고정 → 그 달 해당 요일 슬롯에 자동 채우기 (빈 칸만, 공휴일 제외) */
@@ -703,8 +792,6 @@ function applyFixedWeekday(){
     var fw = (da.attributes && da.attributes.fixedWeekday) ? da.attributes.fixedWeekday : {};
     for(var d=1; d<=total; d++){
       var cell = CalScheduleStore.get(p.personId, viewY, viewM, d);
-      // 1) 이전에 요일고정으로 자동입력된 슬롯(fixed:true)을 먼저 걷어냄 → 수정 반영.
-      //    수동입력(fixed 없음)은 건드리지 않음.
       ['am','pm'].forEach(function(slot){
         if(cell[slot] && cell[slot].fixed){
           CalScheduleStore.setSlot(p.personId,viewY,viewM,d,slot,{code:'',memo:''});
@@ -715,18 +802,19 @@ function applyFixedWeekday(){
     if(!Object.keys(fw).length) return;
     for(var d2=1; d2<=total; d2++){
       var wd = dow(viewY, viewM, d2);
-      if(wd===0) continue;   // ③ 일요일 슬롯 없음
+      if(wd===0) continue;   // 일요일 슬롯 없음
       if(CalendarStore.isHoliday(viewY, viewM+1, d2)) continue;   // 공휴일 제외
-      var code = fw[WD_KEYS[wd]];
-      if(!code) continue;
-      var c2 = CalScheduleStore.get(p.personId, viewY, viewM, d2);
-      // 2) 빈 슬롯에만 새 고정값을 fixed:true 로 채움. 반차는 오후만, 그 외 오전+오후.
-      if(code==='half'){
-        if(!c2.pm.code){ CalScheduleStore.setSlot(p.personId,viewY,viewM,d2,'pm',{code:'half',memo:'',fixed:true}); changed=true; }
-      } else {
-        if(!c2.am.code){ CalScheduleStore.setSlot(p.personId,viewY,viewM,d2,'am',{code:code,memo:'',fixed:true}); changed=true; }
-        if(!c2.pm.code){ CalScheduleStore.setSlot(p.personId,viewY,viewM,d2,'pm',{code:code,memo:'',fixed:true}); changed=true; }
+      var rule = _normFW(fw[WD_KEYS[wd]]);
+      if(!rule) continue;
+      // 주차 필터: weeks 비었으면 매주, 아니면 이 날의 주차가 포함될 때만
+      if(rule.weeks.length){
+        var wi = _weekIndexOfWeekday(viewY, viewM, d2);
+        if(rule.weeks.indexOf(wi)<0) continue;
       }
+      var c2 = CalScheduleStore.get(p.personId, viewY, viewM, d2);
+      // 빈 슬롯에만 fixed:true 로 채움. am/pm 각각.
+      if(rule.am && !c2.am.code){ CalScheduleStore.setSlot(p.personId,viewY,viewM,d2,'am',{code:rule.am,memo:'',fixed:true}); changed=true; }
+      if(rule.pm && !c2.pm.code){ CalScheduleStore.setSlot(p.personId,viewY,viewM,d2,'pm',{code:rule.pm,memo:'',fixed:true}); changed=true; }
     }
   });
   if(changed){
@@ -1026,28 +1114,31 @@ var BRUSHES = [
 var _brush = null;   // 현재 붓 code (null=선택 안 됨, '__erase'=지우개)
 
 function renderPalette(){
-  var box = document.getElementById('palette'); if(!box) return;
-  Array.prototype.forEach.call(box.querySelectorAll('.brush'), function(b){ b.remove(); });
-  BRUSHES.forEach(function(br){
-    var sh = (window.CalShifts) ? CalShifts.get(br.code) : null;
-    if(!sh) return;
-    var el = document.createElement('button');
-    el.className = 'brush' + (_brush===br.code ? ' on' : '');
-    el.setAttribute('data-code', br.code);
-    el.textContent = br.key + ' ' + sh.label;
-    el.style.cssText = 'border:1.5px solid '+(_brush===br.code?sh.color:'var(--bd2)')
-      + ';background:'+(_brush===br.code?sh.bg:'#fff')+';color:'+sh.color
-      + ';border-radius:7px;padding:4px 9px;font-size:12px;font-weight:600;cursor:pointer;';
-    el.addEventListener('click', function(){ setBrush(_brush===br.code?null:br.code); });
-    box.appendChild(el);
+  var boxes = document.querySelectorAll('.palette-box');
+  if(!boxes.length){ var legacy=document.getElementById('palette'); if(legacy) boxes=[legacy]; else return; }
+  Array.prototype.forEach.call(boxes, function(box){
+    Array.prototype.forEach.call(box.querySelectorAll('.brush'), function(b){ b.remove(); });
+    BRUSHES.forEach(function(br){
+      var sh = (window.CalShifts) ? CalShifts.get(br.code) : null;
+      if(!sh) return;
+      var el = document.createElement('button');
+      el.className = 'brush' + (_brush===br.code ? ' on' : '');
+      el.setAttribute('data-code', br.code);
+      el.textContent = br.key + ' ' + sh.label;
+      el.style.cssText = 'border:1.5px solid '+(_brush===br.code?sh.color:'var(--bd2)')
+        + ';background:'+(_brush===br.code?sh.bg:'#fff')+';color:'+sh.color
+        + ';border-radius:7px;padding:4px 9px;font-size:12px;font-weight:600;cursor:pointer;';
+      el.addEventListener('click', function(){ setBrush(_brush===br.code?null:br.code); });
+      box.appendChild(el);
+    });
+    var er = document.createElement('button');
+    er.className = 'brush' + (_brush==='__erase'?' on':'');
+    er.textContent = '⌫ 지우기';
+    er.style.cssText='border:1.5px solid '+(_brush==='__erase'?'var(--text)':'var(--bd2)')
+      +';background:#fff;color:var(--text2);border-radius:7px;padding:4px 9px;font-size:12px;cursor:pointer;';
+    er.addEventListener('click', function(){ setBrush(_brush==='__erase'?null:'__erase'); });
+    box.appendChild(er);
   });
-  var er = document.createElement('button');
-  er.className = 'brush' + (_brush==='__erase'?' on':'');
-  er.textContent = '⌫ 지우기';
-  er.style.cssText='border:1.5px solid '+(_brush==='__erase'?'var(--text)':'var(--bd2)')
-    +';background:#fff;color:var(--text2);border-radius:7px;padding:4px 9px;font-size:12px;cursor:pointer;';
-  er.addEventListener('click', function(){ setBrush(_brush==='__erase'?null:'__erase'); });
-  box.appendChild(er);
 }
 function setBrush(code){ _brush = code; renderPalette(); }
 
