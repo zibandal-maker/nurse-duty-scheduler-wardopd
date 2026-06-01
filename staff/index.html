@@ -244,8 +244,9 @@ function deptBadge(m){
   var cls = deptKindOf(m);
   var lab;
   if(!m) lab='미배정';
-  else if(m==='duty') lab='듀티';
+  // 편집창과 동일 소스: dept-registry 의 부서명 우선 (31병동·52병동…)
   else if(window.DeptRegistry && DeptRegistry.get && DeptRegistry.get(m)) lab=DeptRegistry.get(m).name;
+  else if(m==='duty') lab='듀티';
   else lab = DEPT_LABEL[m] || m;
   return '<span class="badge-dept '+cls+'">'+escapeHtml(lab)+'</span>';
 }

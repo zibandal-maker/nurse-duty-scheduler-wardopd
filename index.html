@@ -11,6 +11,8 @@
 <script src="./shared/dept-registry.js"></script>
 <script src="./shared/utils.js"></script>
 <script src="./shared/calendar-store.js"></script>
+<script src="./calendar/cal-shifts.js"></script>
+<script src="./shared/manager-view.js"></script>
 <style>
   :root{
     --navy:#0C447C; --navy-deep:#072F58; --navy-soft:#1E6DBF;
@@ -56,6 +58,15 @@
   .card.live:hover{transform:translateY(-6px); box-shadow:0 18px 50px rgba(12,68,124,.2); border-color:var(--navy-soft)}
   .card .ico{font-size:30px; margin-bottom:14px; display:block}
   .card h2{font-size:20px; font-weight:800; color:var(--navy-deep); margin-bottom:6px}
+  .todayros{margin:6px 0 10px;font-size:12px;line-height:1.5;}
+  .todayros.empty{color:var(--muted);font-size:11.5px;}
+  .todayros .trow{display:flex;gap:6px;align-items:flex-start;margin-bottom:3px;}
+  .todayros .tcode{flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:18px;border-radius:5px;font-size:10px;font-weight:700;padding:0 4px;}
+  .todayros .tcode.D{background:#E9F1FB;color:#0C447C;}
+  .todayros .tcode.E{background:#FBF0E3;color:#9A5B16;}
+  .todayros .tcode.N{background:#ECE7FA;color:#5B44C8;}
+  .todayros .tcode.work{background:#E6F4EC;color:#1A7A47;}
+  .todayros .tnames{color:var(--text2);word-break:keep-all;}
   .card p{font-size:13px; color:var(--muted); line-height:1.5}
   .card .accent{position:absolute; top:0; left:0; width:4px; height:100%}
   .card.duty .accent{background:linear-gradient(var(--navy),var(--navy-soft))}
@@ -228,6 +239,32 @@
 
 <script>
   // M5c: 외래(비교대) 부서 카드 — 레지스트리 기반 동적 렌더 + 개설.
+  // 오늘 그 부서 근무자 요약 (카드 안에 표시). 듀티=D/E/N/O 그룹, 외래=근무자 명단.
+  function _todayRosterHtml(deptId){
+    if(!window.ManagerView || !ManagerView.dailyRoster) return '';
+    var now=new Date();
+    var r;
+    try{ r=ManagerView.dailyRoster(now.getFullYear(), now.getMonth(), now.getDate()); }catch(_){ return ''; }
+    var bucket = r && r.byDept && r.byDept[deptId];
+    if(!bucket) return '<div class="todayros empty">오늘 근무 정보 없음</div>';
+    var groups = bucket.groups || {};
+    var isDuty = bucket.kind==='duty';
+    var rows=[];
+    if(isDuty){
+      ['D','E','N'].forEach(function(code){
+        var names=(groups[code]||[]);
+        if(names.length) rows.push('<div class="trow"><span class="tcode '+code+'">'+code+'</span><span class="tnames">'+escapeHtml(names.join(', '))+'</span></div>');
+      });
+      if(!rows.length) rows.push('<div class="todayros empty">오늘 D/E/N 근무 없음</div>');
+    } else {
+      var names=[];
+      Object.keys(groups).forEach(function(k){ (groups[k]||[]).forEach(function(nm){ if(names.indexOf(nm)<0) names.push(nm); }); });
+      if(names.length) rows.push('<div class="trow"><span class="tcode work">근무</span><span class="tnames">'+escapeHtml(names.join(', '))+'</span></div>');
+      else rows.push('<div class="todayros empty">오늘 근무자 없음</div>');
+    }
+    return '<div class="todayros">'+rows.join('')+'</div>';
+  }
+
   function renderDutyCards(){
     var box = document.getElementById('dutyCards');
     if(!box) return;
@@ -236,7 +273,7 @@
       // 등록된 듀티 병동이 없으면 기본 듀티 카드 1개 (하위호환)
       box.innerHTML = '<a class="card duty live" href="./duty/index.html">'
         + '<span class="accent"></span><span class="ico">🗓️</span>'
-        + '<h2>듀티 부서</h2><p>D·E·N 3교대 근무표. 자동배치·규칙·인쇄·리포트.</p>'
+        + '<h2>듀티 부서</h2>'
         + '<span class="go">바로가기 →</span></a>';
       return;
     }
@@ -249,7 +286,8 @@
         +   'style="position:absolute;top:10px;right:10px;z-index:2;border:0;background:rgba(255,255,255,.85);border-radius:7px;width:28px;height:28px;cursor:pointer;font-size:14px;line-height:1;">⚙</button>'
         + '<a href="'+href+'" style="text-decoration:none;color:inherit;display:block;">'
         + '<span class="accent"></span><span class="ico">🗓️</span>'
-        + '<h2>'+escapeHtml(wd.name)+'</h2><p>D·E·N 3교대 근무표. 자동배치·규칙·인쇄.</p>'
+        + '<h2>'+escapeHtml(wd.name)+'</h2>'
+        + _todayRosterHtml(wd.id)
         + '<span class="go">바로가기 →</span></a></div>';
     }).join('');
   }
@@ -267,7 +305,7 @@
         + '<span class="accent"></span>'
         + '<span class="ico">🔄</span>'
         + '<h2>'+escapeHtml(d.name)+'</h2>'
-        + '<p>오전·오후 기반 외래 근무표.</p>'
+        + _todayRosterHtml(d.id)
         + '<span class="go">바로가기 →</span>'
         + '</a>'
         + '</div>';
