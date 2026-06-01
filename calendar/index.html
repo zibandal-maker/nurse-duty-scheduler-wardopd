@@ -280,7 +280,7 @@
     <a href="../index.html">← 부서 선택으로</a>
     <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;">
       <button class="toolbtn b-report" id="btnStats" title="근무 통계">📊 통계</button>
-      <button class="toolbtn b-auto" id="btnAuto" title="자동배치 (준비 중)">✨ 자동배치</button>
+      <button class="toolbtn b-auto" id="btnAuto" title="자동배치 — 요일고정 반영 + 평일 근무·토요일 오전">✨ 자동배치</button>
       <button class="toolbtn b-reset" id="btnReset" title="이 부서 근무표 초기화">↺ 초기화</button>
       <button class="toolbtn b-rules" id="btnSettings" title="슬롯 방식·기본 뷰 설정">⚙ 설정</button>
       <button class="toolbtn b-print" id="btnPrint" title="현재 달 인쇄">🖨 인쇄</button>
@@ -1557,9 +1557,50 @@ document.getElementById('btnReset').addEventListener('click', function(){
   }
 });
 
-// ⑤ 자동배치 — 아이콘만(알고리즘 추후). 현재는 안내.
+// ⑤ 자동배치 — 외래 베이스 룰: 요일고정 우선 → 그 외 모두 근무 → 토요일은 오전만.
+//    일요일·공휴일 제외. 빈 칸만 채움(수동 입력 보존). 재실행 가능(auto:true 분만 갱신).
 document.getElementById('btnAuto').addEventListener('click', function(){
-  alert('자동배치 기능은 준비 중입니다.\n\n추후 요일고정·연차·인원 규칙을 바탕으로 근무를 자동 제안하는 알고리즘이 들어갈 예정입니다.');
+  if(!window.PersonsStore || !window.CalScheduleStore || !window.OutpatientAdapter) return;
+  var members = OutpatientAdapter.listMembers(WARD_ID);
+  if(!members.length){ alert('배치할 인원이 없습니다. 먼저 간호사를 추가하세요.'); return; }
+  var monthLabel = viewY+'년 '+(viewM+1)+'월';
+  if(!confirm(monthLabel+' 자동배치를 실행합니다.\n\n· 요일 고정근무가 있으면 그대로 반영\n· 그 외 평일은 오전·오후 근무, 토요일은 오전만\n· 일요일·공휴일 제외\n· 직접 입력한 칸은 그대로 보존\n\n계속할까요?')) return;
+
+  var total = ndays(viewY, viewM);
+  // 1) 이전 자동배치분(auto:true) 걷어냄 — 재실행 시 깨끗이 다시 깖. 수동(flag 없음)은 보존.
+  members.forEach(function(p){
+    for(var d=1; d<=total; d++){
+      var cell = CalScheduleStore.get(p.personId, viewY, viewM, d);
+      ['am','pm'].forEach(function(slot){
+        if(cell[slot] && cell[slot].auto){
+          CalScheduleStore.setSlot(p.personId,viewY,viewM,d,slot,{code:'',memo:''});
+        }
+      });
+    }
+  });
+  // 2) 요일 고정룰 먼저 적용 (fixed:true 로 채움 — 자동배치보다 우선)
+  applyFixedWeekday();
+  // 3) 남은 빈 칸을 베이스 룰로 채움 (auto:true)
+  var filled=0;
+  members.forEach(function(p){
+    for(var d=1; d<=total; d++){
+      var wd = dow(viewY, viewM, d);
+      if(wd===0) continue;                                   // 일요일 제외
+      if(CalendarStore.isHoliday(viewY, viewM+1, d)) continue; // 공휴일 제외
+      var c = CalScheduleStore.get(p.personId, viewY, viewM, d);
+      var isSat = (wd===6);
+      // 오전: 비었으면 근무
+      if(!c.am.code){ CalScheduleStore.setSlot(p.personId,viewY,viewM,d,'am',{code:'work',memo:'',auto:true}); filled++; }
+      // 오후: 토요일은 비움, 평일은 비었으면 근무
+      if(!isSat && !c.pm.code){ CalScheduleStore.setSlot(p.personId,viewY,viewM,d,'pm',{code:'work',memo:'',auto:true}); filled++; }
+    }
+  });
+  if(window.CalActiveRepo && CalActiveRepo.saveSchedule) CalActiveRepo.saveSchedule();
+  else if(window.calSaveToStore) calSaveToStore();
+  renderSheet();
+  _calOnly=true; try{ renderCalendar(); }finally{ _calOnly=false; }
+  if(typeof flashTool==='function') flashTool('자동배치 완료 ✓');
+  else alert('자동배치 완료 — '+filled+'개 슬롯 채움');
 });
 
 /* ── M3d-2: 날짜 편집 모달 (첫 데이터 쓰기) ──

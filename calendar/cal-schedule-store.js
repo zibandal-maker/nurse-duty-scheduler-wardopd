@@ -38,6 +38,7 @@
     var o = { code: (s && s.code) ? String(s.code) : '',
               memo: (s && s.memo) ? String(s.memo) : '' };
     if(s && s.fixed) o.fixed = true;   // 요일고정 자동입력 표시 (수동입력과 구분)
+    if(s && s.auto)  o.auto  = true;   // 자동배치 입력 표시 (재실행 시 갱신 대상)
     return o;
   }
   // 셀에 group(주사실·내과·외과 등 하위 구분) 보존. 빈 문자열이 기본.
