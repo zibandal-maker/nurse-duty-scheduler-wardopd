@@ -1192,6 +1192,15 @@ function _paintCursorHighlight(){
   });
 }
 // 커서 이동 (dx=날짜/슬롯 가로, dy=사람 세로). 가로는 슬롯(am→pm→다음날am) 단위.
+// 그 날이 '입력 불가 칸'인지 — 일요일/공휴일이면서 그 사람에게 데이터도 없는 경우
+function _isSkipDay(pid, day){
+  var wd = dow(viewY, viewM, day);
+  var holi = window.CalendarStore && CalendarStore.isHoliday(viewY, viewM+1, day);
+  if(wd!==0 && !holi) return false;            // 평일은 안 건너뜀
+  var c = CalScheduleStore.get(pid, viewY, viewM, day);
+  var hasData = (c.am&&c.am.code)||(c.pm&&c.pm.code);
+  return !hasData;                              // 데이터 있으면 멈춤(예외근무), 없으면 건너뜀
+}
 function moveCursor(dir){
   if(!_cursor){
     if(_sheetPeople.length) setCursor(_sheetPeople[0], 1, 'am');
@@ -1199,14 +1208,28 @@ function moveCursor(dir){
   }
   var total=ndays(viewY,viewM);
   var pi=_sheetPeople.indexOf(_cursor.pid);
+  var pid=_cursor.pid;
   var day=_cursor.day, slot=_cursor.slot;
   if(dir==='right'){
-    if(slot==='am'){ slot='pm'; } else { slot='am'; day++; if(day>total) day=total, slot='pm'; }
+    var g=0;
+    while(g++<800){
+      if(slot==='am'){ slot='pm'; } else { slot='am'; day++; }
+      if(day>total){ day=total; slot='pm'; break; }
+      if(!_isSkipDay(pid, day)) break;       // 입력 가능한 날이면 멈춤
+      // 건너뛸 날이면 그 날을 통째로 지나가도록 다음 루프에서 day++ 되게 slot을 pm으로
+      slot='pm';
+    }
   } else if(dir==='left'){
-    if(slot==='pm'){ slot='am'; } else { slot='pm'; day--; if(day<1) day=1, slot='am'; }
-  } else if(dir==='up'){ if(pi>0) pi--; }
-  else if(dir==='down'){ if(pi<_sheetPeople.length-1) pi++; }
-  setCursor(_sheetPeople[pi]||_cursor.pid, day, slot);
+    var g2=0;
+    while(g2++<800){
+      if(slot==='pm'){ slot='am'; } else { slot='pm'; day--; }
+      if(day<1){ day=1; slot='am'; break; }
+      if(!_isSkipDay(pid, day)) break;
+      slot='am';
+    }
+  } else if(dir==='up'){ if(pi>0) pi--; pid=_sheetPeople[pi]||pid; }
+  else if(dir==='down'){ if(pi<_sheetPeople.length-1) pi++; pid=_sheetPeople[pi]||pid; }
+  setCursor(pid, day, slot);
 }
 // 코드키 입력 → 현재 커서 칸에 쓰고 오른쪽 자동 전진
 function typeAtCursor(code){
