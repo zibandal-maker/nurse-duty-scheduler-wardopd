@@ -44,15 +44,18 @@
 
   // 한 사람의 그날 근무 조회 — 소속 장부에서.
   //   person = 풀 레코드(personId·membership·deptAttrs 포함)
+  function _isDuty(dept){ return dept==='duty' || /^duty_\d+$/.test(dept); }
   function cellFor(person, y, m, d){
     if(!person) return { dept:null, display:'', raw:null };
     var dept = person.membership || null;
     if(!dept) return { dept:null, display:'', raw:null };
 
-    if(dept === 'duty'){
-      var did = person.deptAttrs && person.deptAttrs.duty && person.deptAttrs.duty.id;
+    if(_isDuty(dept)){
+      var da = person.deptAttrs && person.deptAttrs[dept];
+      var did = da && da.id;
       if(did==null) return { dept:dept, display:'', raw:null };
-      var sched = _read(DUTY_SCHED_KEY);
+      // 병동별 스케줄 키: 'duty'→dv6_s_duty, 'duty_2'→dv6_s_duty_2
+      var sched = _read('dv6_s_' + dept);
       var code = sched[_cellKey(did, y, m, d)] || '';
       return { dept:dept, display:code, raw:code };   // D/E/N/O
     }
@@ -77,7 +80,7 @@
     all.forEach(function(p){
       var dept = p.membership;
       if(!byDept[dept]){
-        var kind = (dept==='duty') ? 'duty' : String(dept).split('_')[0];
+        var kind = _isDuty(dept) ? 'duty' : String(dept).split('_')[0];
         byDept[dept] = { dept:dept, label:deptLabel(dept), kind:kind, groups:{}, total:0, working:0 };
         order.push(dept);
       }
@@ -136,10 +139,12 @@
   }
 
   function deptLabel(deptId){
-    if(deptId==='duty') return '듀티(병동)';
+    // dept-registry 에 등록된 이름이 최우선 (사용자가 지정한 병동명)
     if(g.DeptRegistry && g.DeptRegistry.get){
-      var r = g.DeptRegistry.get(deptId); if(r) return r.name;
+      var r = g.DeptRegistry.get(deptId); if(r && r.name) return r.name;
     }
+    if(deptId==='duty') return '듀티(병동)';
+    if(/^duty_\d+$/.test(deptId)){ var dn=deptId.split('_')[1]; return '병동 '+dn; }
     return deptId || '미배정';
   }
 
@@ -154,7 +159,7 @@
       byDept[dept].count++;
       for(var d=1; d<=ndays; d++){
         var c = cellFor(p, y, m, d);
-        if(dept==='duty'){
+        if(_isDuty(dept)){
           if(c.display==='D'||c.display==='E'||c.display==='N') byDept[dept].workDays++;
         } else {
           var raw = c.raw;

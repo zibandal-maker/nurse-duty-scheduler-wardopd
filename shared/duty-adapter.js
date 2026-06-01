@@ -28,7 +28,8 @@
 (function (g) {
   'use strict';
 
-  var DEPT = 'duty';
+  // 다병동: 활성 듀티 병동 id (URL ?ward= 로 결정, 기본 'duty'). deptAttrs 네임스페이스도 이 값.
+  function DEPT(){ return (g.WARD_ID && /^duty(_\d+)?$/.test(g.WARD_ID)) ? g.WARD_ID : 'duty'; }
 
   // Layer1(사람 기본) 키 — 풀에서 nurse 상단으로 끌어올 것 + 되쓰기 금지 대상.
   var L1_KEYS = ['name','birthday','joinDate','photo','memo','vacTotal'];
@@ -39,7 +40,7 @@
   // ── 읽기: 풀 → nurse 배열 ───────────────────────────────────────────
   // 한 사람 레코드 → nurse 한 명 (Layer1 + deptAttrs.duty 합본)
   function _personToNurse(p){
-    var da = (p.deptAttrs && p.deptAttrs.duty) ? p.deptAttrs.duty : {};
+    var da = (p.deptAttrs && p.deptAttrs[DEPT()]) ? p.deptAttrs[DEPT()] : {};
     var n = {};
     // Layer1 기본 (사람 정보)
     L1_KEYS.forEach(function(k){ if(p[k]!==undefined) n[k]=p[k]; });
@@ -58,11 +59,11 @@
   //   migrateNurse가 있으면 누락 필드 추가 보강.
   function poolToNurses(){
     if(!g.PersonsStore) return [];
-    var list = g.PersonsStore.listByDept(DEPT);   // active===true 인 듀티 소속만
+    var list = g.PersonsStore.listByDept(DEPT());   // active===true 인 듀티 소속만
     // 기존 id 최대값 (신규 id 발급 기준)
     var maxId = 0;
     list.forEach(function(p){
-      var da = (p.deptAttrs && p.deptAttrs.duty) || {};
+      var da = (p.deptAttrs && p.deptAttrs[DEPT()]) || {};
       if(typeof da.id==='number') maxId = Math.max(maxId, da.id);
     });
     var ROLES = g.ROLES || ['수간호사','주임','차지','평간호사','신규간호사'];
@@ -70,7 +71,7 @@
     var assigned = [];   // 이번에 부서특성을 보강한 사람 → 풀에 되쓰기
 
     var nurses = list.map(function(p, idx){
-      var da = (p.deptAttrs && p.deptAttrs.duty) ? Object.assign({}, p.deptAttrs.duty) : {};
+      var da = (p.deptAttrs && p.deptAttrs[DEPT()]) ? Object.assign({}, p.deptAttrs[DEPT()]) : {};
       var changed = false;
       // id 발급·고정
       if(typeof da.id !== 'number'){ da.id = (++maxId); changed = true; }
@@ -98,7 +99,7 @@
 
     // 보강한 부서특성을 풀에 고정 (특히 발급한 id — 다음 로드에도 동일 → 스케줄 안정)
     if(assigned.length && g.PersonsStore.setDeptAttrs){
-      assigned.forEach(function(a){ g.PersonsStore.setDeptAttrs(a.personId, DEPT, a.da); });
+      assigned.forEach(function(a){ g.PersonsStore.setDeptAttrs(a.personId, DEPT(), a.da); });
     }
 
     if(typeof g.migrateNurse === 'function'){
@@ -140,7 +141,7 @@
     }
     var da = _extractDutyAttrs(n);
     da.active = true;  // 듀티 소속이므로 active 유지
-    var ok = g.PersonsStore.setDeptAttrs(n.personId, DEPT, da);
+    var ok = g.PersonsStore.setDeptAttrs(n.personId, DEPT(), da);
     return { ok: ok, leaks: leaks };
   }
 
@@ -162,7 +163,7 @@
   //   membership !== 'duty' 인 모두(미소속 + 타 부서 소속). 표시는 호출부가 결정.
   function listPlaceable(){
     if(!g.PersonsStore) return [];
-    return g.PersonsStore.list().filter(function(p){ return p.membership !== DEPT; });
+    return g.PersonsStore.list().filter(function(p){ return p.membership !== DEPT(); });
   }
   // 풀 인원을 듀티로 배치 (새 사람 생성 아님 — 소속 부여 + 부서특성 초기화).
   //   ★ 배치 시 deptAttrs.duty 를 완전체로 만든다: 고유 id·role·color·attributes·prefs.
@@ -170,16 +171,16 @@
   function placeInDuty(personId, role){
     if(!g.PersonsStore || !personId) return false;
     // 1) 소속 부여 (deptAttrs.duty = {active:true} 생성)
-    var ok = g.PersonsStore.setMembership(personId, DEPT);
+    var ok = g.PersonsStore.setMembership(personId, DEPT());
     if(!ok) return false;
     // 2) 부서특성이 비어있으면(신규 배치) 완전체로 초기화
-    var cur = g.PersonsStore.getDeptAttrs(personId, DEPT) || {};
+    var cur = g.PersonsStore.getDeptAttrs(personId, DEPT()) || {};
     var patch = {};
     if(cur.id===undefined){
       // 듀티 내부 고유 id 발급: 기존 듀티 인원 id 최대값 + 1 (스케줄·락 키)
       var maxId = 0;
-      g.PersonsStore.listByDept(DEPT).forEach(function(p){
-        var did = p.deptAttrs && p.deptAttrs.duty && p.deptAttrs.duty.id;
+      g.PersonsStore.listByDept(DEPT()).forEach(function(p){
+        var did = p.deptAttrs && p.deptAttrs[DEPT()] && p.deptAttrs[DEPT()].id;
         if(typeof did==='number' && did>maxId) maxId=did;
       });
       patch.id = maxId + 1;
@@ -189,7 +190,7 @@
     else if(cur.role===undefined) patch.role = '평간호사';   // ★ 기본 평간호사 (수간호사 아님)
     if(cur.color===undefined){
       var palette = g.NCOLS || ['#2980B9'];
-      var cnt = g.PersonsStore.listByDept(DEPT).length;
+      var cnt = g.PersonsStore.listByDept(DEPT()).length;
       patch.color = palette[(cnt-1+palette.length)%palette.length];
     }
     if(cur.attributes===undefined) patch.attributes = (typeof g.defaultAttributes==='function') ? g.defaultAttributes() : {};
@@ -197,13 +198,13 @@
     if(cur.carryOver===undefined)  patch.carryOver  = { offBalance:0 };
     if(cur.manualOrder===undefined){
       var maxOrd = -1;
-      g.PersonsStore.listByDept(DEPT).forEach(function(p){
-        var mo = p.deptAttrs && p.deptAttrs.duty && p.deptAttrs.duty.manualOrder;
+      g.PersonsStore.listByDept(DEPT()).forEach(function(p){
+        var mo = p.deptAttrs && p.deptAttrs[DEPT()] && p.deptAttrs[DEPT()].manualOrder;
         if(typeof mo==='number' && mo>maxOrd) maxOrd=mo;
       });
       patch.manualOrder = maxOrd + 1;
     }
-    if(Object.keys(patch).length) g.PersonsStore.setDeptAttrs(personId, DEPT, patch);
+    if(Object.keys(patch).length) g.PersonsStore.setDeptAttrs(personId, DEPT(), patch);
     return true;
   }
   // 듀티에서 빼기 (사람 삭제 아님 — 소속 해제. 풀엔 남음).
@@ -225,7 +226,8 @@
     _leakCheck: _leakCheck,
     L1_KEYS: L1_KEYS,
     DUTY_ATTR_KEYS: DUTY_ATTR_KEYS,
-    DEPT: DEPT
+    DEPT: DEPT,
+    deptId: DEPT
   };
   g.__DUTYADAPTER_LOADED__ = true;
 

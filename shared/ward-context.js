@@ -22,8 +22,15 @@
 
   // ── 병동 식별자 (M1b: 'default' → 'duty' 정식 개명) ──────────────────────
   // 듀티 부서의 식별자. localStorage 키 접두사(dv6_*_duty)로 사용.
-  // 다른 부서(비교대=outpatient, 행정=admin 등)와 일관된 격리 체계.
-  g.WARD_ID = 'duty';
+  // 다병동 지원: URL ?ward=duty_1 로 특정 병동 지정 가능(기본 'duty' — 하위호환).
+  //   id 형식은 'duty' 또는 'duty_<n>'. 다른 값은 무시하고 'duty'로 폴백.
+  g.WARD_ID = (function(){
+    try{
+      var p = new URLSearchParams(location.search).get('ward');
+      if(p && /^duty(_\d+)?$/.test(p)) return p;
+    }catch(_){}
+    return 'duty';
+  })();
 
   // ── 저장 키 규칙 (단일 진실원) ───────────────────────────────────────────
   // wardKey(base, wardId): 임의 병동의 저장 키. (다병동 대시보드/서버 대비)
