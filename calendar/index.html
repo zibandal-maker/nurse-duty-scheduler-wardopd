@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="../shared/theme.css">
 <style>
   /* 비교대 고유 보정 — 공통 토큰(theme.css)을 기본값으로 받고, 부서 포인트만 살짝 */
+  :root{ --bd:#d6dde6; --bd2:#c2ccd8; }
   *{box-sizing:border-box;}
   body{margin:0;font-family:var(--sans);
        background:var(--bg2);color:var(--text);line-height:1.5;}
@@ -24,8 +25,18 @@
   /* === 듀티와 통일된 간호사 관리 카드 (.ncard 계열) === */
   .phdr{font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;color:var(--primary-d);}
   .ncards{display:flex;flex-direction:column;gap:4px;margin-bottom:10px;}
-  .ncard{border:0.5px solid var(--bd2);border-radius:var(--r);overflow:hidden;cursor:pointer;transition:box-shadow .15s;background:var(--bg);}
-  .ncard:hover{border-color:rgba(0,0,0,.25);}
+  .ncard{border:1px solid var(--bd);border-radius:var(--r);overflow:hidden;cursor:pointer;transition:box-shadow .15s,border-color .15s;background:var(--bg);}
+  .ncard:hover{border-color:var(--primary);box-shadow:0 1px 4px rgba(30,109,191,.12);}
+  /* ＋ 간호사 추가 카드 — 클릭 가능 표시 (테두리·호버·커서) */
+  details.addsec-cal{border:1.5px dashed var(--bd);border-radius:var(--r);margin-top:8px;
+       transition:border-color .15s,background .15s;background:var(--bg);}
+  details.addsec-cal > summary{cursor:pointer;list-style:none;padding:11px 12px;font-size:13px;
+       font-weight:600;color:var(--primary);text-align:center;border-radius:var(--r);
+       transition:background .15s,color .15s;}
+  details.addsec-cal > summary::-webkit-details-marker{display:none;}
+  details.addsec-cal:hover{border-color:var(--primary);background:var(--primary-bg);}
+  details.addsec-cal:hover > summary{color:var(--primary-d);}
+  details.addsec-cal[open]{border-style:solid;border-color:var(--primary);background:var(--bg);}
   .ncard.sel2{border-color:var(--primary);border-width:1.5px;}
   .nct{display:flex;align-items:center;gap:7px;padding:8px 9px;}
   .navatar-ph{width:34px;height:34px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;border:1.5px solid var(--bd2);cursor:pointer;}
@@ -120,7 +131,7 @@
        white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   /* 의사표형 셀 (M3c) — 날짜 칸 안에 근무자 세로 쌓기 + 오전/오후 좌우분할 */
   table.cal td.daycal{height:auto;min-height:64px;vertical-align:top;padding:3px;}
-  .dayhead{display:flex;align-items:baseline;gap:4px;margin-bottom:2px;}
+  .dayhead{display:flex;align-items:baseline;justify-content:center;gap:4px;margin-bottom:2px;}
   .staffwrap{display:flex;flex-direction:column;gap:1px;}
   .staffrow{display:grid;grid-template-columns:34px 1fr 1fr;align-items:stretch;
        gap:2px;font-size:10px;}
@@ -244,6 +255,7 @@
   table.sheet td.daycell.sund{background:#fdf5f5;}
   table.sheet td.daycell.holi{background:#fdf1f1;}
   table.sheet .slotcell.cursor{outline:2px solid var(--primary);outline-offset:-2px;background:rgba(30,109,191,.12);z-index:2;position:relative;}
+  table.cal .slotcell.cursor{outline:2px solid var(--primary);outline-offset:-1px;background:rgba(30,109,191,.18);z-index:2;position:relative;border-radius:3px;}
   .sheet-legend{font-size:11px;color:var(--text2);margin-top:8px;display:flex;gap:14px;flex-wrap:wrap;}
   .sheet-legend span{display:inline-flex;align-items:center;gap:5px;}
   .sheet-legend i{width:11px;height:11px;border-radius:2px;display:inline-block;border:1px solid var(--line);}
@@ -292,7 +304,7 @@
         <button class="toolbtn" id="calWide" title="넓게" style="padding:2px 8px">＋</button>
       </span>
     </div>
-    <table class="cal">
+    <table class="cal" id="calTable">
       <colgroup>
         <col class="col-sun"><col><col><col><col><col><col class="col-sat">
       </colgroup>
@@ -836,7 +848,7 @@ function renderCalendar(){
   hint.textContent = total + '일';
   if(!_calOnly) renderSheet();   // 출석부도 같은 달로 동기화 (칠하기 중엔 재귀 방지)
 
-  // 슬롯 클릭 → 붓 칠하기 (달력형 칠하기 지원). 붓 없으면 모달로 폴백.
+  // 슬롯 클릭 → 명단형과 동일한 커서/칠하기 시스템 (클릭=커서 이동, 붓 있으면 칠)
   Array.prototype.forEach.call(body.querySelectorAll('.slotcell'), function(sc){
     sc.style.cursor='pointer';
     sc.addEventListener('click', function(ev){
@@ -844,14 +856,10 @@ function renderCalendar(){
       var pid=sc.getAttribute('data-pid');
       var d=parseInt(sc.getAttribute('data-day'),10);
       var slot=sc.getAttribute('data-slot');
-      if(_brush!==null){
-        var code=(_brush==='__erase')?'':_brush;
-        _writeSlot(pid, viewY, viewM, d, slot, code);
-      } else {
-        if(d) openEditor(d);   // 붓 없으면 기존 모달
-      }
+      if(pid&&d&&slot) _paintSlot(pid, viewY, viewM, d, slot);   // 커서 이동(+붓 있으면 칠)
     });
   });
+  _paintCursorHighlight();   // 재렌더 후 커서 표시 복원 (달력형)
   // 날짜 칸 클릭 → 편집 모달 (슬롯 외 영역)
   Array.prototype.forEach.call(body.querySelectorAll('td.daycal'), function(td){
     td.addEventListener('click', function(){
@@ -1079,12 +1087,18 @@ function setCursor(pid, day, slot){
   _paintCursorHighlight();
 }
 function _paintCursorHighlight(){
-  var tbl=document.getElementById('sheetTable'); if(!tbl) return;
-  Array.prototype.forEach.call(tbl.querySelectorAll('.slotcell.cursor'), function(c){ c.classList.remove('cursor'); });
+  // 명단형(sheetTable)과 달력형(calTable) 양쪽에서 커서 칸 표시
+  var tables=[document.getElementById('sheetTable'), document.getElementById('calTable')].filter(Boolean);
+  if(!tables.length) return;
+  tables.forEach(function(tbl){
+    Array.prototype.forEach.call(tbl.querySelectorAll('.slotcell.cursor'), function(c){ c.classList.remove('cursor'); });
+  });
   if(!_cursor) return;
   var sel='.slotcell[data-pid="'+_cursor.pid+'"][data-day="'+_cursor.day+'"][data-slot="'+_cursor.slot+'"]';
-  var cell=tbl.querySelector(sel);
-  if(cell){ cell.classList.add('cursor'); cell.scrollIntoView({block:'nearest',inline:'nearest'}); }
+  tables.forEach(function(tbl){
+    var cell=tbl.querySelector(sel);
+    if(cell){ cell.classList.add('cursor'); cell.scrollIntoView({block:'nearest',inline:'nearest'}); }
+  });
 }
 // 커서 이동 (dx=날짜/슬롯 가로, dy=사람 세로). 가로는 슬롯(am→pm→다음날am) 단위.
 function moveCursor(dir){
