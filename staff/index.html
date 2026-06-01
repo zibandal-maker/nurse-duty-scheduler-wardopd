@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>직원 관리</title>
+<link rel="stylesheet" href="../shared/theme.css">
+<style>
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:var(--sans);background:var(--bg2);color:var(--text);line-height:1.5;}
+  .wrap{max-width:860px;margin:0 auto;padding:24px 16px 48px;}
+  header{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+  header .ico{font-size:28px;}
+  h1{font-size:20px;margin:0;color:var(--primary-d);}
+  .sub{color:var(--text2);font-size:13px;margin:2px 0 20px;}
+  .card{background:var(--bg);border:1px solid var(--line);border-radius:var(--r-lg);
+        padding:16px 18px;margin-bottom:14px;}
+  .card h2{font-size:14px;margin:0 0 10px;color:var(--text2);font-weight:600;
+           text-transform:uppercase;letter-spacing:.04em;}
+  .check{font-family:var(--mono);font-size:13px;}
+  .check .row{display:flex;align-items:center;gap:8px;padding:3px 0;}
+  .check .mark{width:18px;text-align:center;font-weight:700;}
+  .check .ok{color:var(--green);} .check .bad{color:var(--warn);}
+  .check .val{color:var(--text2);margin-left:auto;}
+  .nav a{color:var(--primary);text-decoration:none;font-size:13px;}
+  .note{font-size:12px;color:var(--text2);margin-top:6px;}
+  /* 직원 목록 (M4d-2) */
+  .listhead{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+  .listhead h2{margin:0;font-size:15px;color:var(--primary-d);text-transform:none;letter-spacing:0;}
+  .listhead .cnt{color:var(--primary);font-weight:700;}
+  .listhead .add{margin-left:auto;border:0;background:var(--primary);color:#fff;font-weight:700;
+       border-radius:var(--r);padding:7px 14px;cursor:pointer;font-family:inherit;font-size:13px;}
+  .stafftable{width:100%;border-collapse:collapse;}
+  .stafftable th,.stafftable td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);font-size:13px;}
+  .stafftable th{font-size:11px;color:var(--text2);font-weight:700;text-transform:uppercase;letter-spacing:.04em;}
+  .stafftable td.c{text-align:center;} .stafftable td.r{text-align:right;}
+  .stafftable .pavatar{width:30px;height:30px;border-radius:50%;background:var(--primary-bg);
+       color:var(--primary-d);font-weight:700;display:inline-flex;align-items:center;justify-content:center;
+       font-size:13px;overflow:hidden;}
+  .stafftable .pavatar img{width:100%;height:100%;object-fit:cover;}
+  .badge-dept{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;}
+  .badge-dept.duty{background:#E6F1FB;color:#0C447C;}
+  .badge-dept.outpatient{background:#FAEEDA;color:#A35200;}
+  .badge-dept.none{background:var(--bg3);color:var(--text2);}
+  .badge-mgr{font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:#EEEDFE;color:#4A2E8A;margin-left:4px;}
+  .editbtn{border:1px solid var(--line2);background:var(--bg);border-radius:var(--r);
+       padding:3px 10px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--text2);}
+  .empty{padding:20px;text-align:center;color:var(--text2);font-size:13px;}
+  /* 모달 */
+  .modal-bg{position:fixed;inset:0;background:rgba(20,20,18,.45);display:none;
+       align-items:flex-start;justify-content:center;z-index:100;padding:24px 12px;overflow-y:auto;}
+  .modal-bg.open{display:flex;}
+  .modal{background:var(--bg);border-radius:var(--r-lg);max-width:540px;width:100%;
+       box-shadow:0 24px 60px rgba(0,0,0,.3);overflow:hidden;}
+  .modal-head{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line);background:var(--bg3);}
+  .modal-head h3{margin:0;font-size:16px;color:var(--primary-d);}
+  .modal-head .x{margin-left:auto;border:0;background:transparent;font-size:22px;cursor:pointer;color:var(--text2);}
+  .modal-body{padding:14px 18px;max-height:64vh;overflow-y:auto;}
+  .fld{margin-bottom:13px;}
+  .fld label{display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;}
+  .fld input,.fld textarea{width:100%;border:1px solid var(--line2);border-radius:var(--r);
+       padding:7px 9px;font-size:13px;font-family:inherit;}
+  .fld textarea{resize:vertical;min-height:48px;}
+  .fld-row{display:flex;gap:10px;} .fld-row .fld{flex:1;}
+  .photo-row{display:flex;align-items:center;gap:12px;}
+  .photo-prev{width:54px;height:54px;border-radius:50%;background:var(--primary-bg);overflow:hidden;
+       display:flex;align-items:center;justify-content:center;color:var(--primary-d);font-weight:700;flex:0 0 auto;}
+  .photo-prev img{width:100%;height:100%;object-fit:cover;}
+  .modal-foot{padding:12px 18px;border-top:1px solid var(--line);display:flex;align-items:center;gap:10px;background:var(--bg2);}
+  .modal-foot .del{border:1px solid var(--warn);background:#fff;color:var(--warn);border-radius:var(--r);
+       padding:7px 12px;cursor:pointer;font-family:inherit;font-weight:600;font-size:13px;}
+  .modal-foot .save{margin-left:auto;border:0;background:var(--primary);color:#fff;font-weight:700;
+       border-radius:var(--r);padding:7px 18px;cursor:pointer;font-family:inherit;}
+  details.diag-wrap summary{cursor:pointer;font-size:12px;color:var(--text2);padding:6px 2px;list-style:none;}
+  details.diag-wrap summary::-webkit-details-marker{display:none;}
+  details.diag-wrap summary:before{content:"▸ ";} details.diag-wrap[open] summary:before{content:"▾ ";}
+  /* 소속·관리자 옵션 버튼 (M4d-3) */
+  .opts{display:flex;gap:6px;flex-wrap:wrap;}
+  .opts .opt{border:1px solid var(--line2);background:var(--bg);border-radius:999px;
+       padding:5px 13px;font-size:12px;font-weight:600;cursor:pointer;color:var(--text2);font-family:inherit;}
+  .opts .opt.on{background:var(--primary);color:#fff;border-color:var(--primary);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="ico">👥</span>
+    <h1>직원 관리 <span style="font-size:11px;font-weight:700;color:#fff;background:var(--primary);padding:2px 8px;border-radius:999px;vertical-align:middle;">M4 개발 중</span></h1>
+  </header>
+  <p class="sub">전 직원 명부·소속·연차를 한곳에서 관리합니다. 각 부서는 여기 등록된 직원을 배치합니다.</p>
+
+  <div class="card">
+    <div class="listhead">
+      <h2>직원 명부 <span class="cnt" id="staffCount">—</span></h2>
+      <button class="add" id="btnAdd">+ 신규 등록</button>
+    </div>
+    <table class="stafftable" id="staffTable"></table>
+  </div>
+
+  <details class="diag-wrap">
+    <summary>🔌 모듈 배선 자가진단 — 개발용</summary>
+    <div class="card" style="margin-top:8px;">
+      <div class="check" id="diag"><div class="row"><span class="val">진단 중…</span></div></div>
+    </div>
+  </details>
+
+  <div class="card nav">
+    <a href="../index.html">← 부서 선택으로</a>
+  </div>
+
+</div>
+
+<!-- 등록/편집 모달 -->
+<div class="modal-bg" id="staffModal">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h3 id="smTitle">직원 등록</h3>
+      <button class="x" id="smClose">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="fld photo-row">
+        <div class="photo-prev" id="smPhotoPrev">?</div>
+        <div style="flex:1;">
+          <label>사진 (선택)</label>
+          <input type="file" id="smPhoto" accept="image/*">
+        </div>
+      </div>
+      <div class="fld">
+        <label>이름 *</label>
+        <input type="text" id="smName" placeholder="홍길동">
+      </div>
+      <div class="fld-row">
+        <div class="fld">
+          <label>입사년도</label>
+          <input type="text" id="smJoin" placeholder="2020 또는 2020-03-01">
+        </div>
+        <div class="fld">
+          <label>생일</label>
+          <input type="text" id="smBirth" placeholder="1990-05-21">
+        </div>
+      </div>
+      <div class="fld">
+        <label>연차 총량 (일)</label>
+        <input type="number" id="smVac" placeholder="15" min="0" step="0.5">
+      </div>
+      <div class="fld">
+        <label>메모</label>
+        <textarea id="smMemo" placeholder="특이사항"></textarea>
+      </div>
+
+      <div class="fld" style="border-top:1px solid var(--line);padding-top:13px;">
+        <label>소속 부서</label>
+        <div class="opts" id="smMembership"></div>
+        <p class="note" style="margin-top:6px;">소속은 한 부서만(배타적). 부서를 바꾸면 이전 부서 특성은 보존된 채 비활성됩니다. 외래·의사·행정 부서는 부서 선택 화면에서 개설합니다.</p>
+      </div>
+
+      <div class="fld" id="dutyRoleFld" style="display:none;">
+        <label>듀티 직급</label>
+        <div class="opts" id="smDutyRole">
+          <button type="button" class="opt" data-r="수간호사">수간호사</button>
+          <button type="button" class="opt" data-r="주임">주임</button>
+          <button type="button" class="opt" data-r="차지">차지</button>
+          <button type="button" class="opt" data-r="평간호사">평간호사</button>
+          <button type="button" class="opt" data-r="신규간호사">신규간호사</button>
+        </div>
+        <p class="note" style="margin-top:6px;">듀티 자동배치에 쓰이는 직급입니다. (선택 안 하면 평간호사로 배치)</p>
+      </div>
+
+      <div class="fld">
+        <label>관리자 그룹</label>
+        <div class="opts" id="smManager">
+          <button type="button" class="opt" data-g="head_nurses">수간호사단</button>
+        </div>
+        <p class="note" style="margin-top:6px;">소속 부서는 유지하면서 관리자 스케줄에도 함께 표시됩니다. (겹침 가능)</p>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="del" id="smDelete" style="display:none;">삭제</button>
+      <button class="save" id="smSave">저장</button>
+    </div>
+  </div>
+</div>
+
+<script src="../shared/utils.js"></script>
+<script src="../shared/persons-store.js"></script>
+<script src="../shared/dept-registry.js"></script>
+<script src="../shared/personnel-migrate.js"></script>
+<script src="../shared/nurses-store.js"></script>
+<script src="../shared/duty-adapter.js"></script>
+
+<script>
+/* 직원 관리는 종합 풀(persons-store)의 주인 화면. WARD_ID 불필요(부서 아님). */
+(function diagnose(){
+  var checks = [
+    { name:'utils.js',            ok: !!window.__UTILS_LOADED__, val:'기초 계산' },
+    { name:'persons-store.js',    ok: !!window.__PERSONSSTORE_LOADED__,
+      val:(window.PersonsStore ? PersonsStore.list().length+'명 풀' : '없음') },
+    { name:'personnel-migrate.js',ok: !!window.__PERSONNELMIGRATE_LOADED__, val:'마이그레이션 도구' },
+    { name:'풀 읽기/쓰기',         ok: !!(window.PersonsStore && PersonsStore.list && PersonsStore.setMembership),
+      val:(window.PersonsStore ? '소속관리 가능' : '불가') }
+  ];
+  document.getElementById('diag').innerHTML = checks.map(function(c){
+    return '<div class="row"><span class="mark '+(c.ok?'ok':'bad')+'">'+(c.ok?'✓':'✕')+'</span>'
+      + '<span>'+c.name+'</span><span class="val">'+c.val+'</span></div>';
+  }).join('');
+  console.log('[M4d-1 자가진단]', checks.every(function(c){return c.ok;})?'ALL OK':'FAIL');
+})();
+
+/* ── M4d-2: 직원 목록 + 등록/편집 ── */
+var DEPT_LABEL = { duty:'듀티', outpatient:'외래' };
+function initial(name){ return (name||'?').trim().charAt(0).toUpperCase(); }
+function deptKindOf(m){
+  if(!m) return 'none';
+  if(m==='duty') return 'duty';
+  return String(m).split('_')[0];   // outpatient_1 → outpatient
+}
+function deptBadge(m){
+  var cls = deptKindOf(m);
+  var lab;
+  if(!m) lab='미배정';
+  else if(m==='duty') lab='듀티';
+  else if(window.DeptRegistry && DeptRegistry.get && DeptRegistry.get(m)) lab=DeptRegistry.get(m).name;
+  else lab = DEPT_LABEL[m] || m;
+  return '<span class="badge-dept '+cls+'">'+escapeHtml(lab)+'</span>';
+}
+function renderList(){
+  var people = (window.PersonsStore? PersonsStore.list():[]);
+  people.sort(function(a,b){ return (a.name||'').localeCompare(b.name||'', 'ko'); });
+  document.getElementById('staffCount').textContent = people.length+'명';
+  var tbl = document.getElementById('staffTable');
+  if(people.length===0){
+    tbl.innerHTML = '<tr><td><div class="empty">등록된 직원이 없습니다. [+ 신규 등록]으로 추가하세요.</div></td></tr>';
+    return;
+  }
+  var head = '<thead><tr><th>이름</th><th>소속</th><th>생일</th><th class="r">연차</th><th></th></tr></thead>';
+  var rows = people.map(function(p){
+    var av = p.photo ? '<span class="pavatar"><img src="'+escapeHtml(p.photo)+'"></span>'
+                     : '<span class="pavatar">'+escapeHtml(initial(p.name))+'</span>';
+    var mgr = p.isManager ? '<span class="badge-mgr">관리</span>' : '';
+    var vac = (typeof p.vacTotal==='number') ? p.vacTotal+'일' : '—';
+    return '<tr>'
+      + '<td><div style="display:flex;align-items:center;gap:8px;">'+av+'<b>'+escapeHtml(p.name||'(이름없음)')+'</b>'+mgr+'</div></td>'
+      + '<td>'+deptBadge(p.membership)+'</td>'
+      + '<td>'+escapeHtml(p.birthday||'—')+'</td>'
+      + '<td class="r">'+vac+'</td>'
+      + '<td class="r"><button class="editbtn" data-pid="'+escapeHtml(p.personId)+'">편집</button></td>'
+      + '</tr>';
+  });
+  tbl.innerHTML = head + '<tbody>'+rows.join('')+'</tbody>';
+  Array.prototype.forEach.call(tbl.querySelectorAll('.editbtn'), function(b){
+    b.addEventListener('click', function(){ openStaff(b.getAttribute('data-pid')); });
+  });
+}
+
+var _editPid = null;       // null = 신규
+var _photoData = '';       // 현재 폼의 사진 base64
+var _selMembership = '';   // 선택된 소속
+var _selGroups = [];       // 선택된 관리 그룹
+var _selDutyRole = '';     // 선택된 듀티 직급 (deptAttrs.duty.role)
+function openStaff(pid){
+  _editPid = pid || null;
+  _photoData = '';
+  var p = pid ? PersonsStore.get(pid) : null;
+  document.getElementById('smTitle').textContent = pid ? '직원 편집' : '직원 등록';
+  document.getElementById('smName').value  = p ? (p.name||'') : '';
+  document.getElementById('smJoin').value  = p ? (p.joinDate||'') : '';
+  document.getElementById('smBirth').value = p ? (p.birthday||'') : '';
+  document.getElementById('smVac').value   = (p && typeof p.vacTotal==='number') ? p.vacTotal : '';
+  document.getElementById('smMemo').value  = p ? (p.memo||'') : '';
+  _photoData = p ? (p.photo||'') : '';
+  _selMembership = p ? (p.membership||'') : '';
+  _selGroups = (p && Array.isArray(p.managerGroups)) ? p.managerGroups.slice() : [];
+  // 듀티 직급: deptAttrs.duty.role (있으면)
+  _selDutyRole = (p && p.deptAttrs && p.deptAttrs.duty && p.deptAttrs.duty.role) ? p.deptAttrs.duty.role : '';
+  updatePhotoPrev(p ? p.name : '');
+  renderMembershipOptions();
+  syncMembershipBtns();
+  syncManagerBtns();
+  syncDutyRoleBtns();
+  document.getElementById('smDelete').style.display = pid ? '' : 'none';
+  document.getElementById('staffModal').classList.add('open');
+}
+// M5d/⑰: 소속 옵션을 레지스트리에서 동적 생성 — 미배정·듀티 + 등록된 부서(계열별)
+var KIND_LABEL = { outpatient:'외래', doctor:'의사', admin:'행정' };
+function renderMembershipOptions(){
+  var box = document.getElementById('smMembership');
+  if(!box) return;
+  var html = '<button type="button" class="opt" data-v="">미배정</button>'
+           + '<button type="button" class="opt" data-v="duty">듀티(병동)</button>';
+  if(window.DeptRegistry){
+    var all = DeptRegistry.list();
+    // 계열별로 묶어 표시 (외래·의사·행정 순)
+    var order = ['outpatient','doctor','admin'];
+    var byKind = {};
+    all.forEach(function(d){ (byKind[d.kind]=byKind[d.kind]||[]).push(d); });
+    var kinds = order.filter(function(k){return byKind[k];})
+                     .concat(Object.keys(byKind).filter(function(k){return order.indexOf(k)<0;}));
+    kinds.forEach(function(k){
+      byKind[k].forEach(function(d){
+        var pfx = KIND_LABEL[k] ? (KIND_LABEL[k]+' · ') : '';
+        html += '<button type="button" class="opt" data-v="'+escapeHtml(d.id)+'">'+pfx+escapeHtml(d.name)+'</button>';
+      });
+    });
+  }
+  box.innerHTML = html;
+  // (재)바인딩
+  Array.prototype.forEach.call(box.querySelectorAll('.opt'), function(o){
+    o.addEventListener('click', function(){ _selMembership = o.getAttribute('data-v'); syncMembershipBtns(); });
+  });
+}
+function syncMembershipBtns(){
+  Array.prototype.forEach.call(document.querySelectorAll('#smMembership .opt'), function(o){
+    o.className = 'opt' + (o.getAttribute('data-v')===_selMembership ? ' on' : '');
+  });
+  // 듀티 소속일 때만 직급 선택 노출
+  var fld = document.getElementById('dutyRoleFld');
+  if(fld) fld.style.display = (_selMembership==='duty') ? '' : 'none';
+}
+function syncDutyRoleBtns(){
+  Array.prototype.forEach.call(document.querySelectorAll('#smDutyRole .opt'), function(o){
+    o.className = 'opt' + (o.getAttribute('data-r')===_selDutyRole ? ' on' : '');
+  });
+}
+function syncManagerBtns(){
+  Array.prototype.forEach.call(document.querySelectorAll('#smManager .opt'), function(o){
+    o.className = 'opt' + (_selGroups.indexOf(o.getAttribute('data-g'))>=0 ? ' on' : '');
+  });
+}
+function updatePhotoPrev(name){
+  var el = document.getElementById('smPhotoPrev');
+  el.innerHTML = _photoData ? '<img src="'+escapeHtml(_photoData)+'">' : escapeHtml(initial(name||document.getElementById('smName').value));
+}
+function closeStaff(){ document.getElementById('staffModal').classList.remove('open'); renderList(); }
+
+document.getElementById('btnAdd').addEventListener('click', function(){ openStaff(null); });
+document.getElementById('smClose').addEventListener('click', closeStaff);
+document.getElementById('staffModal').addEventListener('click', function(e){ if(e.target===this) closeStaff(); });
+document.getElementById('smName').addEventListener('input', function(){ if(!_photoData) updatePhotoPrev(); });
+
+// 소속 선택 (배타: 하나만)
+Array.prototype.forEach.call(document.querySelectorAll('#smMembership .opt'), function(o){
+  o.addEventListener('click', function(){ _selMembership = o.getAttribute('data-v'); syncMembershipBtns(); });
+});
+// 듀티 직급 선택 (단일)
+Array.prototype.forEach.call(document.querySelectorAll('#smDutyRole .opt'), function(o){
+  o.addEventListener('click', function(){ _selDutyRole = o.getAttribute('data-r'); syncDutyRoleBtns(); });
+});
+// 관리 그룹 토글 (겹침 가능)
+Array.prototype.forEach.call(document.querySelectorAll('#smManager .opt'), function(o){
+  o.addEventListener('click', function(){
+    var g = o.getAttribute('data-g'); var i = _selGroups.indexOf(g);
+    if(i>=0) _selGroups.splice(i,1); else _selGroups.push(g);
+    syncManagerBtns();
+  });
+});
+
+// 사진 → base64 (간단; 용량 경고는 차기 다듬기)
+document.getElementById('smPhoto').addEventListener('change', function(e){
+  var f = e.target.files[0]; if(!f) return;
+  var r = new FileReader();
+  r.onload = function(ev){ _photoData = ev.target.result; updatePhotoPrev(); };
+  r.readAsDataURL(f);
+});
+
+document.getElementById('smSave').addEventListener('click', function(){
+  var name = document.getElementById('smName').value.trim();
+  if(!name){ alert('이름을 입력하세요.'); return; }
+  var vacRaw = document.getElementById('smVac').value;
+  var fields = {
+    name: name,
+    joinDate: document.getElementById('smJoin').value.trim(),
+    birthday: document.getElementById('smBirth').value.trim(),
+    memo: document.getElementById('smMemo').value,
+    photo: _photoData
+  };
+  if(vacRaw!=='' && !isNaN(parseFloat(vacRaw))) fields.vacTotal = parseFloat(vacRaw);
+  // 관리자 그룹은 기본 필드와 함께 저장
+  fields.isManager = _selGroups.length>0;
+  fields.managerGroups = _selGroups.slice();
+  var pid;
+  if(_editPid){ PersonsStore.upsert(_editPid, fields); pid = _editPid; }
+  else { pid = PersonsStore.create(fields); }
+  // 소속은 setMembership으로(이전 부서 특성 비활성·새 부서 활성 처리)
+  if(pid){
+    var cur = PersonsStore.get(pid);
+    var membershipChanged = (cur.membership||'') !== _selMembership;
+    if(_selMembership==='duty'){
+      // 듀티 배치는 어댑터 경유 — 부서특성 완전체 초기화(id·색·속성·선호) + 직급 반영.
+      //   입구가 staff든 duty든 동일 초기화 보장(단일 초기화 경로).
+      if(window.DutyAdapter){
+        DutyAdapter.placeInDuty(pid, _selDutyRole || undefined);
+      } else if(membershipChanged){
+        PersonsStore.setMembership(pid, 'duty');
+        if(_selDutyRole) PersonsStore.setDeptAttrs(pid, 'duty', { role:_selDutyRole, active:true });
+      } else if(_selDutyRole){
+        PersonsStore.setDeptAttrs(pid, 'duty', { role:_selDutyRole, active:true });
+      }
+    } else if(membershipChanged){
+      PersonsStore.setMembership(pid, _selMembership || null);
+    }
+  }
+  closeStaff();
+});
+
+document.getElementById('smDelete').addEventListener('click', function(){
+  if(!_editPid) return;
+  var p = PersonsStore.get(_editPid);
+  if(!confirm('"'+(p?p.name:'')+'" 직원을 삭제할까요?\n\n※ personId는 영구 결번 처리되어 재사용되지 않습니다.\n※ 각 부서 스케줄에 남은 근무는 별도 정리가 필요할 수 있습니다.')) return;
+  PersonsStore.remove(_editPid);
+  closeStaff();
+});
+
+renderList();
+</script>
+<script src="../shared/version.js"></script>
+</body>
+</html>

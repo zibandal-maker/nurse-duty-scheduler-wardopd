@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>월 통계 — 전 부서</title>
+<!--
+   overview/index.html — ⑥ 전 부서 통합 스케줄 + 통계 (읽기 전용)
+   ★ 새 데이터 없음 — ManagerView.allMatrix/deptStats 로 듀티·외래 전 부서 장부를 거울처럼 모음.
+-->
+<link rel="stylesheet" href="../shared/theme.css">
+<script src="../shared/utils.js"></script>
+<script src="../shared/calendar-store.js"></script>
+<script src="../shared/persons-store.js"></script>
+<script src="../shared/dept-registry.js"></script>
+<script src="../calendar/cal-shifts.js"></script>
+<script src="../shared/manager-view.js"></script>
+<style>
+  :root{
+    --navy:#1E6DBF; --navy-deep:#0C447C; --bg:#F4F8FD; --card:#fff;
+    --line:#D6E0EE; --muted:#5B6B7F; --text:#1a2330;
+    --duty-bg:#E9F1FB; --duty-fg:#0C447C;
+    --out-bg:#FAEEDA; --out-fg:#A35200;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Pretendard',-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;
+       background:var(--bg);color:var(--text);padding:18px;}
+  .top{display:flex;align-items:center;gap:12px;margin-bottom:6px;}
+  .top a.back{font-size:13px;color:var(--navy);text-decoration:none;font-weight:600;}
+  h1{font-size:20px;font-weight:800;color:var(--navy-deep);margin:0;}
+  .sub{font-size:12px;color:var(--muted);margin:4px 0 18px;}
+  .navbar{display:flex;align-items:center;gap:14px;margin-bottom:12px;}
+  .navbar button{border:1px solid var(--line);background:var(--card);border-radius:8px;
+       padding:5px 12px;font-size:13px;cursor:pointer;color:var(--navy-deep);font-weight:600;}
+  .navbar .mlabel{font-size:15px;font-weight:800;color:var(--navy-deep);min-width:120px;text-align:center;}
+  /* 통계 카드 */
+  .stats{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px;}
+  .scard{flex:1;min-width:150px;border:1px solid var(--line);border-radius:12px;background:var(--card);padding:14px 16px;}
+  .scard h3{margin:0 0 8px;font-size:13px;color:var(--navy-deep);font-weight:700;}
+  .srow{display:flex;justify-content:space-between;font-size:12px;padding:2px 0;color:var(--text);}
+  .srow .v{font-weight:700;color:var(--navy);}
+  .big{font-size:26px;font-weight:800;color:var(--navy);}
+  /* 스케줄 매트릭스 */
+  .wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--card);}
+  table{border-collapse:collapse;width:100%;font-size:11px;}
+  th,td{border:0.5px solid var(--line);padding:3px 4px;text-align:center;white-space:nowrap;}
+  th.namecol,td.namecol{position:sticky;left:0;background:var(--card);text-align:left;
+       min-width:130px;font-weight:700;z-index:1;}
+  thead th{background:#EEF4FB;font-weight:700;color:var(--navy-deep);}
+  th.sat{color:#1E6DBF;} th.sun,th.holi{color:#C0392B;}
+  td.cell{font-weight:600;}
+  td.duty{background:var(--duty-bg);color:var(--duty-fg);}
+  td.out{background:var(--out-bg);color:var(--out-fg);}
+  td.empty{color:#cfd8e3;}
+  .deptbadge{font-size:9px;padding:1px 5px;border-radius:6px;margin-left:5px;font-weight:600;}
+  .deptbadge.duty{background:var(--duty-bg);color:var(--duty-fg);}
+  .deptbadge.out{background:var(--out-bg);color:var(--out-fg);}
+  .deptrow td{background:#F4F8FD;font-weight:700;color:var(--navy-deep);text-align:left;}
+  .empty-msg{padding:30px;text-align:center;color:var(--muted);font-size:13px;}
+  .legend{display:flex;gap:14px;font-size:11px;color:var(--muted);margin-bottom:10px;align-items:center;flex-wrap:wrap;}
+  .lg{display:inline-flex;align-items:center;gap:4px;}
+  .sw{width:12px;height:12px;border-radius:3px;display:inline-block;}
+</style>
+</head>
+<body>
+  <div class="top">
+    <a class="back" href="../index.html">← 부서 선택으로</a>
+    <a class="back" href="../overview/index.html" style="color:#1F8A5E">📋 오늘 현황판</a>
+    <h1>📊 월 통계</h1>
+  </div>
+  <p class="sub">월 단위 부서별 인원·근무일·연차 통계와 전체 스케줄 매트릭스. 일일 현황은 현황판에서.</p>
+
+  <div class="navbar">
+    <button id="prevM">‹ 이전</button>
+    <span class="mlabel" id="mLabel">—</span>
+    <button id="nextM">다음 ›</button>
+    <button id="todayB">오늘</button>
+  </div>
+
+  <!-- 통계 -->
+  <div class="stats" id="statsBox"></div>
+
+  <div class="legend">
+    <span class="lg"><span class="sw" style="background:var(--duty-bg)"></span>듀티(D·E·N·O)</span>
+    <span class="lg"><span class="sw" style="background:var(--out-bg)"></span>외래(근무·연차·반차…)</span>
+  </div>
+
+  <!-- 통합 스케줄 매트릭스 -->
+  <div class="wrap" id="matWrap"><div class="empty-msg">불러오는 중…</div></div>
+
+<script>
+  if(window.CalendarStore){ try{ CalendarStore.load(); }catch(_){ } }
+  var _today=new Date();
+  var viewY=_today.getFullYear(), viewM=_today.getMonth(); // 0-based
+  var MONTH_KO=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+  var WD_KO=['일','월','화','수','목','금','토'];
+
+  function ndaysOf(y,m){ return new Date(y,m+1,0).getDate(); }
+  function dowOf(y,m,d){ return new Date(y,m,d).getDay(); }
+  function esc(s){ return String(s||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+
+  function render(){
+    document.getElementById('mLabel').textContent = viewY+'년 '+MONTH_KO[viewM];
+    renderStats();
+    renderMatrix();
+  }
+
+  function renderStats(){
+    var nd=ndaysOf(viewY,viewM);
+    var st=(window.ManagerView&&ManagerView.deptStats)?ManagerView.deptStats(viewY,viewM,nd):{depts:[],totalPeople:0,totalVacDays:0};
+    var deptRows = st.depts.length
+      ? st.depts.map(function(d){ return '<div class="srow"><span>'+esc(d.label)+'</span><span class="v">'+d.count+'명</span></div>'; }).join('')
+      : '<div class="srow"><span style="color:var(--muted)">배치된 인원 없음</span></div>';
+    var workRows = st.depts.length
+      ? st.depts.map(function(d){ return '<div class="srow"><span>'+esc(d.label)+'</span><span class="v">'+d.workDays+'일</span></div>'; }).join('')
+      : '<div class="srow"><span style="color:var(--muted)">—</span></div>';
+    document.getElementById('statsBox').innerHTML =
+        '<div class="scard"><h3>부서별 인원</h3>'+deptRows
+        +'<div class="srow" style="border-top:1px solid var(--line);margin-top:5px;padding-top:5px"><span>전체</span><span class="v">'+st.totalPeople+'명</span></div></div>'
+      + '<div class="scard"><h3>부서별 근무일 (이번 달)</h3>'+workRows+'</div>'
+      + '<div class="scard"><h3>외래 연차 사용 (이번 달)</h3><div class="big">'+st.totalVacDays+'<span style="font-size:13px;color:var(--muted)">일</span></div>'
+        +'<div class="srow"><span style="color:var(--muted);font-size:11px">연차·월차·반차 합산</span></div></div>';
+  }
+
+  function renderMatrix(){
+    var nd=ndaysOf(viewY,viewM);
+    var mat=(window.ManagerView&&ManagerView.allMatrix)?ManagerView.allMatrix(viewY,viewM,nd):{people:[],cells:{}};
+    if(!mat.people.length){
+      document.getElementById('matWrap').innerHTML='<div class="empty-msg">배치된 인원이 없습니다. 각 부서에서 인원을 배치하면 여기에 모입니다.</div>';
+      return;
+    }
+    // 헤더
+    var thead='<thead><tr><th class="namecol">이름 · 부서</th>';
+    for(var d=1;d<=nd;d++){
+      var wd=dowOf(viewY,viewM,d);
+      var holi=window.CalendarStore?CalendarStore.isHoliday(viewY,viewM+1,d):false;
+      var cls=holi?'holi':(wd===0?'sun':(wd===6?'sat':''));
+      thead+='<th class="'+cls+'">'+d+'<br><span style="font-size:9px">'+WD_KO[wd]+'</span></th>';
+    }
+    thead+='</tr></thead>';
+    // 본문 — 부서별 그룹 구분행
+    var tbody='<tbody>', lastDept=null;
+    mat.people.forEach(function(p){
+      if(p.membership!==lastDept){
+        lastDept=p.membership;
+        var lbl=(window.ManagerView)?ManagerView.deptLabel(lastDept):lastDept;
+        tbody+='<tr class="deptrow"><td colspan="'+(nd+1)+'">'+esc(lbl)+'</td></tr>';
+      }
+      var isDuty=(p.membership==='duty');
+      tbody+='<tr><td class="namecol">'+esc(p.name||'?')
+        +'<span class="deptbadge '+(isDuty?'duty':'out')+'">'+(isDuty?'듀티':'외래')+'</span></td>';
+      for(var d2=1;d2<=nd;d2++){
+        var c=mat.cells[p.personId+'|'+d2]||{display:'',dept:null};
+        var disp=c.display||'';
+        var ccls=disp?(isDuty?'cell duty':'cell out'):'empty';
+        tbody+='<td class="'+ccls+'">'+(disp?esc(disp):'·')+'</td>';
+      }
+      tbody+='</tr>';
+    });
+    tbody+='</tbody>';
+    document.getElementById('matWrap').innerHTML='<table>'+thead+tbody+'</table>';
+  }
+
+  function shift(delta){
+    viewM+=delta;
+    if(viewM<0){viewM=11;viewY--;} else if(viewM>11){viewM=0;viewY++;}
+    render();
+  }
+  document.getElementById('prevM').addEventListener('click',function(){shift(-1);});
+  document.getElementById('nextM').addEventListener('click',function(){shift(1);});
+  document.getElementById('todayB').addEventListener('click',function(){viewY=_today.getFullYear();viewM=_today.getMonth();render();});
+
+  render();
+</script>
+<script src="../shared/version.js"></script>
+</body>
+</html>

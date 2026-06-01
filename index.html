@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>근무 스케줄러 — 부서 선택</title>
+<!-- 공유 모듈: 사람 풀을 읽어 전체 인원 표시 (풀 분리 동작 확인)
+     ★ ward-context.js 는 로드하지 않는다 — 듀티 전용(WARD_ID='duty' + 로드 즉시 듀티 마이그레이션).
+       부서 선택 화면은 어느 부서도 아니므로 persons-store(공유 풀)만 필요하다. -->
+<script src="./shared/persons-store.js"></script>
+<script src="./shared/dept-registry.js"></script>
+<script src="./shared/utils.js"></script>
+<script src="./shared/calendar-store.js"></script>
+<style>
+  :root{
+    --navy:#0C447C; --navy-deep:#072F58; --navy-soft:#1E6DBF;
+    --crimson:#791F1F; --paper:#F4F7FB; --ink:#16243A; --muted:#5A6B82;
+    --line:#D6E0EE; --card:#FFFFFF; --shadow:0 10px 40px rgba(12,68,124,.12);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;
+    background:
+      radial-gradient(1200px 500px at 50% -10%, #E6F1FB 0%, transparent 60%),
+      linear-gradient(180deg, var(--paper) 0%, #EAF1FB 100%);
+    color:var(--ink); min-height:100vh;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:32px 20px;
+  }
+  .wrap{width:100%; max-width:760px; text-align:center}
+  .brand{
+    font-size:13px; letter-spacing:.32em; color:var(--navy-soft);
+    font-weight:700; text-transform:uppercase; margin-bottom:14px;
+    opacity:0; animation:rise .6s .05s forwards;
+  }
+  h1{
+    font-size:clamp(28px,5vw,42px); font-weight:800; color:var(--navy-deep);
+    letter-spacing:-.02em; line-height:1.2; margin-bottom:10px;
+    opacity:0; animation:rise .6s .15s forwards;
+  }
+  .sub{
+    font-size:15px; color:var(--muted); margin-bottom:38px;
+    opacity:0; animation:rise .6s .25s forwards;
+  }
+  .cards{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:30px}
+  @media(max-width:560px){ .cards{grid-template-columns:1fr} }
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:18px;
+    padding:30px 26px; text-align:left; box-shadow:var(--shadow);
+    text-decoration:none; color:inherit; position:relative; overflow:hidden;
+    transition:transform .22s cubic-bezier(.2,.8,.2,1), box-shadow .22s, border-color .22s;
+    opacity:0; animation:rise .6s forwards;
+  }
+  .card:nth-child(1){animation-delay:.35s}
+  .card:nth-child(2){animation-delay:.45s}
+  .card.live:hover{transform:translateY(-6px); box-shadow:0 18px 50px rgba(12,68,124,.2); border-color:var(--navy-soft)}
+  .card .ico{font-size:30px; margin-bottom:14px; display:block}
+  .card h2{font-size:20px; font-weight:800; color:var(--navy-deep); margin-bottom:6px}
+  .card p{font-size:13px; color:var(--muted); line-height:1.5}
+  .card .accent{position:absolute; top:0; left:0; width:4px; height:100%}
+  .card.duty .accent{background:linear-gradient(var(--navy),var(--navy-soft))}
+  .card.cal .accent{background:linear-gradient(var(--navy-soft),#3FA0E6)}
+  .card.cal.live:hover{transform:translateY(-6px); box-shadow:0 18px 50px rgba(12,68,124,.2); border-color:var(--navy-soft)}
+  /* 직원 관리 카드 (가로형, 부서 카드와 구분) */
+  .card.staff{display:flex; align-items:center; gap:16px; text-decoration:none;
+    background:linear-gradient(135deg,#fbfcfe,#eef4fb); border-color:var(--navy-soft);}
+  .card.staff .ico{font-size:30px; margin:0;}
+  .card.staff .staff-txt{flex:1;}
+  .card.staff h2{font-size:18px; margin-bottom:4px;}
+  .card.staff .go{margin-top:0; white-space:nowrap;}
+  .card.staff.live:hover{transform:translateY(-4px); box-shadow:0 14px 40px rgba(12,68,124,.18);}
+  .card.soon{opacity:.62; cursor:not-allowed}
+  .card.soon .badge{
+    display:inline-block; margin-top:12px; font-size:11px; font-weight:700;
+    color:var(--muted); background:#EEF2F8; border:1px solid var(--line);
+    padding:3px 10px; border-radius:20px; letter-spacing:.04em;
+  }
+  .card .go{
+    margin-top:14px; font-size:13px; font-weight:700; color:var(--navy-soft);
+    display:inline-flex; align-items:center; gap:6px;
+  }
+  .card.live:hover .go{gap:10px}
+  .roster{
+    display:inline-flex; align-items:center; gap:10px; font-size:13px;
+    color:var(--muted); background:rgba(255,255,255,.7); border:1px solid var(--line);
+    padding:9px 18px; border-radius:30px; backdrop-filter:blur(6px);
+    opacity:0; animation:rise .6s .6s forwards;
+  }
+  .roster b{color:var(--navy-deep); font-weight:800; font-size:15px}
+  .roster .dot{width:7px;height:7px;border-radius:50%;background:#2EA875;box-shadow:0 0 0 3px rgba(46,168,117,.18)}
+  .foot{margin-top:26px; font-size:11px; color:var(--muted); opacity:0; animation:rise .6s .7s forwards}
+  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">Nurse Scheduler</div>
+    <h1>부서를 선택하세요</h1>
+    <p class="sub">근무 스케줄을 관리할 부서를 고르면 해당 앱으로 이동합니다.</p>
+
+    <div class="cards">
+      <a class="card duty live" href="./duty/index.html">
+        <span class="accent"></span>
+        <span class="ico">🗓️</span>
+        <h2>듀티 부서</h2>
+        <p>D·E·N 3교대 근무표. 자동배치·규칙·인쇄·리포트.</p>
+        <span class="go">바로가기 →</span>
+      </a>
+      <!-- M5c: 외래(비교대) 부서 — 레지스트리 기반 동적 렌더 -->
+      <div id="calCards" style="display:contents"></div>
+    </div>
+
+    <dialog id="newDeptDlg" style="border:0;border-radius:16px;padding:0;max-width:380px;width:90%;box-shadow:0 24px 60px rgba(0,0,0,.25);">
+      <div style="padding:24px;">
+        <h3 style="margin:0 0 6px;font-size:18px;color:var(--navy-deep);font-weight:800;">새 부서 개설</h3>
+        <p style="margin:0 0 16px;font-size:13px;color:var(--muted);line-height:1.5;">예: 외과계 외래, 내과계 외래, 주사실, 의사팀, 행정팀. 개설 후 직원관리에서 인원을 이 부서로 배치합니다.</p>
+        <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:5px;font-weight:600;">부서 계열</label>
+        <div id="newDeptKind" style="display:flex;gap:6px;margin-bottom:12px;">
+          <button type="button" class="kindopt on" data-k="outpatient" style="flex:1;padding:8px;border:1.5px solid var(--navy);background:var(--navy);color:#fff;border-radius:8px;font-size:13px;cursor:pointer;">외래</button>
+          <button type="button" class="kindopt" data-k="doctor" style="flex:1;padding:8px;border:1.5px solid var(--line);background:#fff;color:var(--text);border-radius:8px;font-size:13px;cursor:pointer;">의사</button>
+          <button type="button" class="kindopt" data-k="admin" style="flex:1;padding:8px;border:1.5px solid var(--line);background:#fff;color:var(--text);border-radius:8px;font-size:13px;cursor:pointer;">행정</button>
+        </div>
+        <input id="newDeptName" type="text" placeholder="부서 이름" maxlength="20"
+          style="width:100%;padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px;margin-bottom:14px;box-sizing:border-box;">
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button id="newDeptCancel" style="padding:9px 16px;border:1px solid var(--line);background:#fff;border-radius:9px;font-size:14px;cursor:pointer;">취소</button>
+          <button id="newDeptOk" style="padding:9px 18px;border:0;background:var(--navy);color:#fff;border-radius:9px;font-size:14px;font-weight:600;cursor:pointer;">개설</button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="deptManageDlg" style="border:0;border-radius:16px;padding:0;max-width:400px;width:90%;box-shadow:0 24px 60px rgba(0,0,0,.25);">
+      <div style="padding:24px;">
+        <h3 style="margin:0 0 16px;font-size:18px;color:var(--navy-deep);font-weight:800;">부서 관리 <span id="dmName" style="color:var(--navy);"></span></h3>
+        <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:5px;font-weight:600;">부서 이름 변경</label>
+        <div style="display:flex;gap:8px;margin-bottom:18px;">
+          <input id="dmRenameInput" type="text" maxlength="20"
+            style="flex:1;padding:9px;border:1px solid var(--line);border-radius:9px;font-size:14px;box-sizing:border-box;">
+          <button id="dmRenameBtn" style="padding:9px 14px;border:0;background:var(--navy);color:#fff;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">변경</button>
+        </div>
+        <div style="border-top:1px solid var(--line);padding-top:16px;">
+          <label style="display:block;font-size:12px;color:#C0392B;margin-bottom:5px;font-weight:600;">부서 삭제</label>
+          <p style="margin:0 0 10px;font-size:12px;color:var(--muted);line-height:1.5;">이 부서의 근무표가 모두 삭제되고, 소속 인원은 부서에서 빠집니다. (직원 자체는 직원관리에 남습니다.)</p>
+          <button id="dmDeleteBtn" style="padding:8px 14px;border:1px solid #C0392B;background:#fff;color:#C0392B;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;">이 부서 삭제</button>
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:18px;">
+          <button id="dmClose" style="padding:9px 16px;border:1px solid var(--line);background:#fff;border-radius:9px;font-size:14px;cursor:pointer;">닫기</button>
+        </div>
+      </div>
+    </dialog>
+
+    <a class="card staff live" href="./staff/index.html">
+      <span class="ico">👥</span>
+      <div class="staff-txt">
+        <h2>직원 관리</h2>
+        <p>전 직원 명부·소속·연차를 한곳에서. 각 부서는 여기 등록된 직원을 배치합니다.</p>
+      </div>
+      <span class="go">관리 →</span>
+    </a>
+
+    <a class="card staff live" href="./overview/index.html">
+      <span class="ico">📋</span>
+      <div class="staff-txt">
+        <h2>오늘의 근무 현황</h2>
+        <p>오늘 각 부서에서 누가 어떤 근무인지 한눈에. 월 통계는 현황판에서 이동.</p>
+      </div>
+      <span class="go">보기 →</span>
+    </a>
+
+    <a class="card staff live" href="./manager/index.html">
+      <span class="ico">👑</span>
+      <div class="staff-txt">
+        <h2>관리자 근무 현황</h2>
+        <p>수간호사단 근무를 각자 소속 부서에서 모아 봅니다. 읽기 전용 집계 뷰.</p>
+      </div>
+      <span class="go">보기 →</span>
+    </a>
+
+    <div class="roster">
+      <span class="dot"></span>
+      등록된 직원 <b id="personCount">—</b>명 · 종합 인력 풀
+    </div>
+
+    <!-- ⑤ 공휴일 중앙 관리 — 듀티·외래 공용 데이터 -->
+    <div id="holidayPanel" style="margin-top:18px;padding:16px 18px;border:1px solid var(--line);border-radius:12px;background:#fff;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <span style="font-size:15px;font-weight:700;color:var(--navy-deep);">📅 공휴일 관리</span>
+        <span id="holUpd" style="font-size:11px;color:var(--muted);"></span>
+        <button id="holRefresh" style="margin-left:auto;padding:7px 14px;border:1px solid var(--navy);background:var(--navy);color:#fff;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;">공휴일 갱신</button>
+      </div>
+      <p style="margin:8px 0 0;font-size:12px;color:var(--muted);line-height:1.5;">
+        모든 부서(듀티·외래)가 같은 공휴일 데이터를 공유합니다. 여기서 한 번 갱신하면 전 부서에 반영됩니다.
+      </p>
+      <div id="holList" style="margin-top:10px;font-size:12px;color:var(--text2);line-height:1.7;"></div>
+    </div>
+
+    <p class="foot">직원은 한 부서에 소속되며, 이름·생일·연차 등 기본 정보는 전 부서가 공유합니다.</p>
+  </div>
+
+<script>
+  // M5c: 외래(비교대) 부서 카드 — 레지스트리 기반 동적 렌더 + 개설.
+  function renderCalCards(){
+    var box = document.getElementById('calCards');
+    if(!box) return;
+    var depts = (window.DeptRegistry) ? DeptRegistry.listByKind('outpatient') : [];
+    var html = depts.map(function(d){
+      return '<div class="card cal live" style="position:relative;">'
+        + '<button class="deptGear" data-id="'+encodeURIComponent(d.id)+'" data-name="'+encodeURIComponent(d.name)+'" '
+        +   'title="부서 관리 (이름변경·삭제)" '
+        +   'style="position:absolute;top:10px;right:10px;z-index:2;border:0;background:rgba(255,255,255,.85);border-radius:7px;width:28px;height:28px;cursor:pointer;font-size:14px;line-height:1;">⚙</button>'
+        + '<a href="./calendar/index.html?dept='+encodeURIComponent(d.id)+'" style="text-decoration:none;color:inherit;display:block;">'
+        + '<span class="accent"></span>'
+        + '<span class="ico">🔄</span>'
+        + '<h2>'+escapeHtml(d.name)+'</h2>'
+        + '<p>오전·오후 기반 외래 근무표.</p>'
+        + '<span class="go">바로가기 →</span>'
+        + '</a>'
+        + '</div>';
+    }).join('');
+    // 개설 카드 (항상 마지막)
+    html += '<a class="card cal live" id="newDeptCard" href="#" '
+      + 'style="display:flex;flex-direction:column;align-items:center;justify-content:center;'
+      + 'border-style:dashed;color:var(--navy);min-height:120px;">'
+      + '<span class="ico" style="margin-bottom:6px">＋</span>'
+      + '<h2 style="font-size:16px">새 외래 부서 개설</h2>'
+      + '<p style="text-align:center">외과계·내과계·주사실 등</p>'
+      + '</a>';
+    box.innerHTML = html;
+    var addCard = document.getElementById('newDeptCard');
+    if(addCard) addCard.addEventListener('click', function(e){
+      e.preventDefault();
+      var dlg = document.getElementById('newDeptDlg');
+      document.getElementById('newDeptName').value='';
+      if(dlg.showModal) dlg.showModal(); else dlg.setAttribute('open','');
+      setTimeout(function(){ document.getElementById('newDeptName').focus(); }, 50);
+    });
+    // M5c: 부서 관리(⚙) — 이름변경·삭제
+    Array.prototype.forEach.call(box.querySelectorAll('.deptGear'), function(btn){
+      btn.addEventListener('click', function(e){
+        e.preventDefault(); e.stopPropagation();
+        openDeptManage(decodeURIComponent(btn.getAttribute('data-id')), decodeURIComponent(btn.getAttribute('data-name')));
+      });
+    });
+  }
+  function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+  (function(){
+    var dlg = document.getElementById('newDeptDlg');
+    function closeDlg(){ if(dlg.close) dlg.close(); else dlg.removeAttribute('open'); }
+    var _newKind = 'outpatient';
+    Array.prototype.forEach.call(document.querySelectorAll('#newDeptKind .kindopt'), function(b){
+      b.addEventListener('click', function(){
+        _newKind = b.getAttribute('data-k');
+        Array.prototype.forEach.call(document.querySelectorAll('#newDeptKind .kindopt'), function(x){
+          var on = (x===b);
+          x.style.borderColor = on ? 'var(--navy)' : 'var(--line)';
+          x.style.background = on ? 'var(--navy)' : '#fff';
+          x.style.color = on ? '#fff' : 'var(--text)';
+        });
+      });
+    });
+    function createDept(){
+      var name = (document.getElementById('newDeptName').value||'').trim();
+      if(!name){ document.getElementById('newDeptName').focus(); return; }
+      if(window.DeptRegistry){
+        var rec = DeptRegistry.create(name, _newKind);
+        if(rec){ closeDlg(); renderCalCards();
+          if(_newKind==='outpatient'){
+            location.href = './calendar/index.html?dept='+encodeURIComponent(rec.id);
+          } else {
+            // 의사·행정 부서: 개설만. 인원 배치는 직원관리에서.
+            alert('['+name+'] 부서를 개설했습니다.\n직원관리에서 인원을 이 부서로 배치하세요. (전용 근무표 화면은 추후 확장)');
+          }
+        }
+      }
+    }
+    document.getElementById('newDeptOk').addEventListener('click', createDept);
+    document.getElementById('newDeptCancel').addEventListener('click', closeDlg);
+    document.getElementById('newDeptName').addEventListener('keydown', function(e){
+      if(e.key==='Enter') createDept();
+    });
+    renderCalCards();
+  })();
+
+  // M5c: 부서 관리 — 이름변경 + 삭제(데이터·소속 정리)
+  var _dmId = null;
+  function openDeptManage(id, name){
+    _dmId = id;
+    document.getElementById('dmName').textContent = name;
+    document.getElementById('dmRenameInput').value = name;
+    var dlg = document.getElementById('deptManageDlg');
+    if(dlg.showModal) dlg.showModal(); else dlg.setAttribute('open','');
+  }
+  (function(){
+    var dlg = document.getElementById('deptManageDlg');
+    function close(){ if(dlg.close) dlg.close(); else dlg.removeAttribute('open'); }
+    document.getElementById('dmClose').addEventListener('click', close);
+    document.getElementById('dmRenameBtn').addEventListener('click', function(){
+      var nm = (document.getElementById('dmRenameInput').value||'').trim();
+      if(!nm || !_dmId) return;
+      if(window.DeptRegistry && DeptRegistry.rename(_dmId, nm)){ renderCalCards(); close(); }
+    });
+    document.getElementById('dmDeleteBtn').addEventListener('click', function(){
+      if(!_dmId) return;
+      var nm = document.getElementById('dmName').textContent;
+      if(!confirm('['+nm+'] 부서를 삭제합니다.\n\n· 이 부서 근무표가 모두 삭제됩니다.\n· 소속 인원은 부서에서 빠집니다(직원은 직원관리에 유지).\n\n계속할까요?')) return;
+      deleteDept(_dmId);
+      renderCalCards(); close();
+    });
+  })();
+
+  // 부서 삭제: 레지스트리 + 근무데이터(cal_sched_<id>) + 소속 인원 분리
+  function deleteDept(id){
+    // 1) 소속 인원 분리 — membership 해제 + deptAttrs[id] 비활성
+    if(window.PersonsStore){
+      var members = PersonsStore.listByDept ? PersonsStore.listByDept(id) : [];
+      members.forEach(function(p){
+        // 이 부서가 주 소속이면 소속 해제
+        var rec = PersonsStore.get(p.personId);
+        if(rec){
+          if(rec.membership === id && PersonsStore.setMembership) PersonsStore.setMembership(p.personId, null);
+          // deptAttrs 비활성 (이력 보존)
+          if(PersonsStore.setDeptAttrs) PersonsStore.setDeptAttrs(p.personId, id, { active:false });
+        }
+      });
+    }
+    // 2) 근무 데이터 삭제
+    try{ localStorage.removeItem('cal_sched_'+id); }catch(_){}
+    // 3) 레지스트리에서 제거
+    if(window.DeptRegistry) DeptRegistry.remove(id);
+  }
+
+  // 공유 사람 풀에서 전체 인원 수 읽기 — 풀 분리가 실제로 동작함을 보여주는 지표.
+  (function(){
+    try {
+      var n = (window.PersonsStore) ? PersonsStore.list().length : 0;
+      var el = document.getElementById('personCount');
+      // 카운트 업 애니메이션 (작은 디테일)
+      var target = n, cur = 0, step = Math.max(1, Math.ceil(target/24));
+      if(target===0){ el.textContent='0'; return; }
+      var t = setInterval(function(){
+        cur += step; if(cur>=target){ cur=target; clearInterval(t); }
+        el.textContent = cur;
+      }, 28);
+    } catch(e){
+      document.getElementById('personCount').textContent='0';
+    }
+  })();
+  // ⑤ 공휴일 중앙 관리 — 듀티·외래 공용 (CalendarStore)
+  (function(){
+    if(!window.CalendarStore) return;
+    try { CalendarStore.load(); } catch(_){}
+    var btn = document.getElementById('holRefresh');
+    var updEl = document.getElementById('holUpd');
+    var listEl = document.getElementById('holList');
+    var MONTH = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+
+    function fmtUpd(){
+      var u = CalendarStore.lastUpdated && CalendarStore.lastUpdated();
+      if(!u){ updEl.textContent = '· 아직 갱신 안 됨'; return; }
+      var d = new Date(u);
+      updEl.textContent = '· 최근 갱신 '+d.getFullYear()+'.'+(d.getMonth()+1)+'.'+d.getDate();
+    }
+    function renderList(){
+      var y = new Date().getFullYear();
+      var hs = CalendarStore.holidays ? CalendarStore.holidays(y) : [];
+      if(!hs.length){ listEl.innerHTML = '<span style="color:var(--muted)">'+y+'년 공휴일 정보 없음 — “공휴일 갱신”을 눌러 불러오세요.</span>'; return; }
+      hs.sort(function(a,b){ return (a.month-b.month)||(a.day-b.day); });
+      listEl.innerHTML = '<b style="color:var(--navy-deep)">'+y+'년 공휴일</b><br>'
+        + hs.map(function(h){ return MONTH[h.month-1]+' '+h.day+'일 '+escapeHtml(h.name); }).join(' · ');
+    }
+    function refresh(){ fmtUpd(); renderList(); }
+    refresh();
+
+    if(btn) btn.addEventListener('click', function(){
+      btn.textContent='불러오는 중…'; btn.disabled=true;
+      CalendarStore.refresh()
+        .then(function(cnt){ btn.textContent='공휴일 갱신'; btn.disabled=false; refresh(); alert('공휴일 갱신 완료 — '+cnt+'개 로드 ✓'); })
+        .catch(function(err){ btn.textContent='공휴일 갱신'; btn.disabled=false; alert('갱신 실패: '+err.message); });
+    });
+  })();
+</script>
+<script src="./shared/version.js"></script>
+</body>
+</html>

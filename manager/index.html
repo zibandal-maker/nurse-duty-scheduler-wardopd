@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>관리자 근무 현황 — 수간호사단</title>
+<!--
+   manager/index.html — 관리그룹(수간호사단) 근무 집계 뷰 (M4f, 읽기 전용)
+   ★ 새 데이터 없음 — 각 멤버의 소속 부서 장부(듀티 dv6_s_duty / 비교대 cal_sched_outpatient)를
+     ManagerView 어댑터로 거울처럼 비춰 한 화면에 모은다. 편집 불가(진실원은 각 부서).
+   ★ ward-context 미로드 (부서 아님). 인력은 종합 풀에서 listByGroup으로.
+-->
+<link rel="stylesheet" href="../shared/theme.css">
+<style>
+  :root{
+    --navy:#1E6DBF; --navy-deep:#0C447C; --bg:#F4F8FD; --card:#fff;
+    --line:#D6E0EE; --muted:#5B6B7F; --text:#1a2330;
+    --duty-bg:#E9F1FB; --duty-fg:#0C447C;
+    --out-bg:#FAEEDA; --out-fg:#A35200;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Pretendard',-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;
+       background:var(--bg);color:var(--text);padding:18px;}
+  .top{display:flex;align-items:center;gap:12px;margin-bottom:6px;}
+  .top a.back{font-size:13px;color:var(--navy);text-decoration:none;font-weight:600;}
+  h1{font-size:20px;font-weight:800;color:var(--navy-deep);margin:0;}
+  .sub{font-size:12px;color:var(--muted);margin:4px 0 18px;}
+  .legend{display:flex;gap:14px;font-size:11px;color:var(--muted);margin-bottom:10px;align-items:center;}
+  .lg{display:inline-flex;align-items:center;gap:4px;}
+  .sw{width:12px;height:12px;border-radius:3px;display:inline-block;}
+  .navbar{display:flex;align-items:center;gap:14px;margin-bottom:12px;}
+  .navbar button{border:1px solid var(--line);background:var(--card);border-radius:8px;
+       padding:5px 12px;font-size:13px;cursor:pointer;color:var(--navy-deep);font-weight:600;}
+  .navbar .mlabel{font-size:15px;font-weight:800;color:var(--navy-deep);min-width:120px;text-align:center;}
+  .wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--card);}
+  table{border-collapse:collapse;width:100%;font-size:11px;}
+  th,td{border:0.5px solid var(--line);padding:3px 4px;text-align:center;white-space:nowrap;}
+  th.namecol,td.namecol{position:sticky;left:0;background:var(--card);text-align:left;
+       min-width:120px;font-weight:700;z-index:1;}
+  thead th{background:#EEF4FB;font-weight:700;color:var(--navy-deep);}
+  th.sat{color:#1E6DBF;} th.sun,th.holi{color:#C0392B;}
+  td.cell{font-weight:600;}
+  td.duty{background:var(--duty-bg);color:var(--duty-fg);}
+  td.out{background:var(--out-bg);color:var(--out-fg);}
+  td.empty{color:#cfd8e3;}
+  .deptbadge{font-size:9px;padding:1px 5px;border-radius:6px;margin-left:5px;font-weight:600;}
+  .deptbadge.duty{background:var(--duty-bg);color:var(--duty-fg);}
+  .deptbadge.out{background:var(--out-bg);color:var(--out-fg);}
+  .empty-msg{padding:30px;text-align:center;color:var(--muted);font-size:13px;}
+</style>
+</head>
+<body>
+  <div class="top">
+    <a class="back" href="../index.html">← 부서</a>
+    <h1>👑 관리자 근무 현황</h1>
+  </div>
+  <p class="sub">수간호사단 멤버의 근무를 각자 소속 부서(듀티·비교대)에서 모아 보여줍니다. 읽기 전용 — 근무 수정은 각 부서 화면에서.</p>
+
+  <div class="legend">
+    <span class="lg"><span class="sw" style="background:var(--duty-bg)"></span>듀티(D·E·N·O·V)</span>
+    <span class="lg"><span class="sw" style="background:var(--out-bg)"></span>비교대(근무·연차·반차 등)</span>
+  </div>
+
+  <div class="navbar">
+    <button id="prevBtn">‹ 이전</button>
+    <span class="mlabel" id="mLabel">—</span>
+    <button id="nextBtn">다음 ›</button>
+    <span style="font-size:12px;color:var(--muted)">수간호사단 <b id="memCount">—</b>명</span>
+  </div>
+
+  <div class="wrap"><div id="matrix"></div></div>
+
+<script src="../shared/utils.js"></script>
+<script src="../shared/calendar-store.js"></script>
+<script src="../shared/persons-store.js"></script>
+<script src="./../calendar/cal-shifts.js"></script>
+<script src="../shared/manager-view.js"></script>
+<script>
+/* 관리그룹 고정: 현재 수간호사단(head_nurses)만. 추후 그룹 선택 UI 확장 가능. */
+var GROUP = 'head_nurses';
+var MONTH_KO = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+var WD_KO = ['일','월','화','수','목','금','토'];
+
+var _t = new Date();
+var viewY = _t.getFullYear();
+var viewM = _t.getMonth();   // 0-indexed
+
+function deptBadge(m){
+  if(m==='duty') return '<span class="deptbadge duty">듀티</span>';
+  if(m==='outpatient') return '<span class="deptbadge out">비교대</span>';
+  return '';
+}
+
+function render(){
+  try { if(window.CalendarStore && CalendarStore.load) CalendarStore.load(); } catch(e){}
+  document.getElementById('mLabel').textContent = viewY + '년 ' + MONTH_KO[viewM];
+  var nd = ndays(viewY, viewM);
+  var mat = (window.ManagerView)
+    ? ManagerView.monthMatrix(GROUP, viewY, viewM, nd)
+    : { people:[], cells:{} };
+
+  document.getElementById('memCount').textContent = mat.people.length;
+  var el = document.getElementById('matrix');
+
+  if(mat.people.length === 0){
+    el.innerHTML = '<div class="empty-msg">수간호사단으로 지정된 인원이 없습니다.<br>'
+      + '직원관리에서 관리자 그룹(수간호사단)을 지정하면 여기에 모입니다.</div>';
+    return;
+  }
+
+  // 이름 가나다순
+  mat.people.sort(function(a,b){ return (a.name||'').localeCompare(b.name||'', 'ko'); });
+
+  // 헤더
+  var head = '<thead><tr><th class="namecol">이름＼날짜</th>';
+  for(var d=1; d<=nd; d++){
+    var wd = dow(viewY, viewM, d);
+    var holi = window.CalendarStore && CalendarStore.isHoliday
+               ? CalendarStore.isHoliday(viewY, viewM+1, d) : false;
+    var cls = holi ? 'holi' : (wd===6 ? 'sat' : (wd===0 ? 'sun' : ''));
+    head += '<th class="'+cls+'">'+d+'<br><span style="font-weight:400">'+WD_KO[wd]+'</span></th>';
+  }
+  head += '</tr></thead>';
+
+  // 본문 (사람 × 날짜)
+  var rows = mat.people.map(function(p){
+    var tr = '<td class="namecol">'+escapeHtml(p.name||'(이름 없음)')+deptBadge(p.membership)+'</td>';
+    for(var d=1; d<=nd; d++){
+      var c = mat.cells[p.personId+'|'+d] || {dept:null,display:''};
+      var ccls = 'cell ' + (c.display ? (c.dept==='duty'?'duty':(c.dept==='outpatient'?'out':'')) : 'empty');
+      tr += '<td class="'+ccls+'">'+(c.display ? escapeHtml(c.display) : '·')+'</td>';
+    }
+    return '<tr>'+tr+'</tr>';
+  }).join('');
+
+  el.innerHTML = '<table>'+head+'<tbody>'+rows+'</tbody></table>';
+}
+
+document.getElementById('prevBtn').addEventListener('click', function(){
+  viewM--; if(viewM<0){ viewM=11; viewY--; } render();
+});
+document.getElementById('nextBtn').addEventListener('click', function(){
+  viewM++; if(viewM>11){ viewM=0; viewY++; } render();
+});
+
+render();
+</script>
+<script src="../shared/version.js"></script>
+</body>
+</html>

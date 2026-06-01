@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>오늘의 근무 현황 — 전 부서</title>
+<!--
+   overview/index.html — 일일 근무 현황판 (읽기 전용)
+   ★ 오늘(또는 선택일)에 어느 직원이 어떤 근무인지 부서 카드로 한눈에.
+     데이터는 ManagerView.dailyRoster 로 듀티·외래 장부를 거울처럼 모음. 통계는 stats/ 로 분리.
+-->
+<link rel="stylesheet" href="../shared/theme.css">
+<script src="../shared/utils.js"></script>
+<script src="../shared/calendar-store.js"></script>
+<script src="../shared/persons-store.js"></script>
+<script src="../shared/dept-registry.js"></script>
+<script src="../calendar/cal-shifts.js"></script>
+<script src="../shared/manager-view.js"></script>
+<style>
+  :root{
+    --navy:#1E6DBF; --navy-deep:#0C447C; --bg:#F4F8FD; --card:#fff;
+    --line:#D9E2EE; --muted:#5B6B7F; --text:#1a2330;
+    --d:#1E6DBF; --d-bg:#E9F1FB; --e:#1F8A5E; --e-bg:#E1F5EC;
+    --n:#6248BD; --n-bg:#ECE7FA; --o:#90A0B5; --o-bg:#F0F3F7;
+    --out:#A35200; --out-bg:#FBF0DE; --vac:#C0392B; --vac-bg:#FBEAE8;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Pretendard',-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;
+       background:var(--bg);color:var(--text);padding:18px;}
+  .top{display:flex;align-items:center;gap:12px;margin-bottom:4px;flex-wrap:wrap;}
+  .top a.back{font-size:13px;color:var(--navy);text-decoration:none;font-weight:600;}
+  h1{font-size:21px;font-weight:800;color:var(--navy-deep);margin:0;}
+  .sub{font-size:12px;color:var(--muted);margin:4px 0 16px;}
+  /* 날짜 네비 */
+  .datebar{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
+  .datebar button{border:1px solid var(--line);background:var(--card);border-radius:9px;
+       padding:7px 13px;font-size:13px;cursor:pointer;color:var(--navy-deep);font-weight:600;}
+  .datebar button:hover{background:#EEF4FB;}
+  .datebar .dlabel{font-size:17px;font-weight:800;color:var(--navy-deep);min-width:180px;text-align:center;}
+  .datebar .today-btn{background:var(--navy);color:#fff;border-color:var(--navy);}
+  .spacer{flex:1;}
+  .statlink{font-size:13px;color:var(--navy);text-decoration:none;border:1px solid var(--navy);
+       border-radius:9px;padding:7px 13px;font-weight:600;}
+  /* 요약 카드 */
+  .summary{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px;}
+  .scard{flex:1;min-width:120px;border:1px solid var(--line);border-radius:12px;background:var(--card);
+       padding:14px 16px;text-align:center;}
+  .scard .v{font-size:26px;font-weight:800;color:var(--navy);}
+  .scard .l{font-size:12px;color:var(--muted);margin-top:3px;}
+  /* 부서 카드 그리드 */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;}
+  .dcard{border:1px solid var(--line);border-radius:14px;background:var(--card);overflow:hidden;
+       box-shadow:0 1px 3px rgba(20,50,90,.04);}
+  .dcard .hd{display:flex;align-items:center;gap:8px;padding:13px 16px;border-bottom:1px solid var(--line);}
+  .dcard .hd .dot{width:9px;height:9px;border-radius:50%;background:var(--navy);}
+  .dcard .hd .nm{font-size:15px;font-weight:800;color:var(--navy-deep);}
+  .dcard .hd .kindtag{font-size:10px;padding:2px 7px;border-radius:6px;font-weight:600;}
+  .kindtag.duty{background:var(--d-bg);color:var(--d);}
+  .kindtag.outpatient{background:var(--out-bg);color:var(--out);}
+  .kindtag.doctor{background:#E8E2F7;color:#6248BD;}
+  .kindtag.admin{background:#E0EEF2;color:#2C7A8C;}
+  .dcard .hd .cnt{margin-left:auto;font-size:12px;color:var(--muted);}
+  .dcard .bd{padding:8px 16px 14px;}
+  /* 근무 그룹 행 */
+  .shiftrow{display:flex;gap:10px;padding:7px 0;border-bottom:1px dashed #EEF2F7;align-items:flex-start;}
+  .shiftrow:last-child{border-bottom:0;}
+  .shiftrow .badge{flex-shrink:0;min-width:30px;height:24px;border-radius:7px;font-size:12px;font-weight:800;
+       display:flex;align-items:center;justify-content:center;padding:0 7px;}
+  .b-D{background:var(--d-bg);color:var(--d);} .b-E{background:var(--e-bg);color:var(--e);}
+  .b-N{background:var(--n-bg);color:var(--n);} .b-O{background:var(--o-bg);color:var(--o);}
+  .b-out{background:var(--out-bg);color:var(--out);} .b-vac{background:var(--vac-bg);color:var(--vac);}
+  .shiftrow .names{font-size:13px;color:var(--text);line-height:1.6;padding-top:1px;}
+  .shiftrow .names .none{color:#B6C2D0;}
+  .dcard .empty{padding:18px 16px;text-align:center;color:#A8B6C6;font-size:13px;}
+  .board-empty{padding:40px;text-align:center;color:var(--muted);font-size:14px;
+       border:1px dashed var(--line);border-radius:14px;background:var(--card);}
+</style>
+</head>
+<body>
+  <div class="top">
+    <a class="back" href="../index.html">← 부서 선택으로</a>
+    <h1>📋 오늘의 근무 현황</h1>
+  </div>
+  <p class="sub">선택한 날짜에 각 부서에서 누가 어떤 근무인지 한눈에. 읽기 전용 — 근무 수정은 각 부서 화면에서.</p>
+
+  <div class="datebar">
+    <button id="prevD">‹ 어제</button>
+    <span class="dlabel" id="dLabel">—</span>
+    <button id="nextD">내일 ›</button>
+    <button id="todayB" class="today-btn">오늘</button>
+    <span class="spacer"></span>
+    <a class="statlink" href="../stats/index.html">📊 월 통계 보기 →</a>
+  </div>
+
+  <div class="summary" id="summaryBox"></div>
+
+  <div class="grid" id="boardGrid"></div>
+
+<script>
+  if(window.CalendarStore){ try{ CalendarStore.load(); }catch(_){ } }
+  var _t=new Date();
+  var viewY=_t.getFullYear(), viewM=_t.getMonth(), viewD=_t.getDate(); // M 0-based
+  var WD=['일','월','화','수','목','금','토'];
+  var DUTY_ORDER=['D','E','N','O'];
+  var DUTY_FULL={D:'Day 주간',E:'Eve 저녁',N:'Night 야간',O:'Off 휴무'};
+
+  function esc(s){return String(s||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function ndays(y,m){return new Date(y,m+1,0).getDate();}
+
+  function clampDay(){ var n=ndays(viewY,viewM); if(viewD>n)viewD=n; if(viewD<1)viewD=1; }
+
+  function render(){
+    clampDay();
+    var dow=new Date(viewY,viewM,viewD).getDay();
+    var holi=window.CalendarStore?CalendarStore.isHoliday(viewY,viewM+1,viewD):false;
+    var dtxt=viewY+'년 '+(viewM+1)+'월 '+viewD+'일 ('+WD[dow]+')';
+    if(holi) dtxt+=' · 공휴일';
+    document.getElementById('dLabel').textContent=dtxt;
+    renderSummary();
+    renderBoard();
+  }
+
+  function renderSummary(){
+    var s=(window.ManagerView&&ManagerView.dailySummary)?ManagerView.dailySummary(viewY,viewM,viewD):{totalPeople:0,totalWorking:0,deptCount:0};
+    document.getElementById('summaryBox').innerHTML=
+        '<div class="scard"><div class="v">'+s.deptCount+'</div><div class="l">부서</div></div>'
+      + '<div class="scard"><div class="v">'+s.totalPeople+'</div><div class="l">전체 인원</div></div>'
+      + '<div class="scard"><div class="v">'+s.totalWorking+'</div><div class="l">오늘 근무 중</div></div>';
+  }
+
+  function badgeClass(kind, key){
+    if(kind==='duty') return 'b-'+key;          // D/E/N/O
+    if(key.indexOf('연차')>=0||key.indexOf('월차')>=0||key.indexOf('반차')>=0||key.indexOf('휴가')>=0) return 'b-vac';
+    return 'b-out';
+  }
+
+  function renderBoard(){
+    var r=(window.ManagerView&&ManagerView.dailyRoster)?ManagerView.dailyRoster(viewY,viewM,viewD):{byDept:{},order:[]};
+    if(!r.order.length){
+      document.getElementById('boardGrid').innerHTML='<div class="board-empty">배치된 인원이 없습니다. 각 부서에서 인원을 배치하면 여기에 모입니다.</div>';
+      return;
+    }
+    var html='';
+    r.order.forEach(function(deptId){
+      var b=r.byDept[deptId];
+      var rows='';
+      if(b.kind==='duty'){
+        // D/E/N 순으로, 있는 것만 (Off는 맨 뒤·접어서)
+        DUTY_ORDER.forEach(function(code){
+          var names=b.groups[code];
+          if(!names||!names.length) return;
+          rows+='<div class="shiftrow"><span class="badge b-'+code+'">'+code+'</span>'
+              + '<span class="names">'+names.map(esc).join(', ')+'</span></div>';
+        });
+      } else {
+        // 외래: 근무 먼저, 그다음 나머지(연차 등)
+        var keys=Object.keys(b.groups).sort(function(a,bb){
+          var aw=a.indexOf('근무')>=0?0:1, bw=bb.indexOf('근무')>=0?0:1; return aw-bw;
+        });
+        keys.forEach(function(key){
+          var names=b.groups[key];
+          rows+='<div class="shiftrow"><span class="badge '+badgeClass(b.kind,key)+'">'+esc(key)+'</span>'
+              + '<span class="names">'+names.map(esc).join(', ')+'</span></div>';
+        });
+      }
+      if(!rows) rows='<div class="empty">오늘 등록된 근무가 없습니다</div>';
+      html+='<div class="dcard">'
+          + '<div class="hd"><span class="dot"></span><span class="nm">'+esc(b.label)+'</span>'
+          + '<span class="kindtag '+b.kind+'">'+(b.kind==='duty'?'병동':b.kind==='outpatient'?'외래':b.kind==='doctor'?'의사':'행정')+'</span>'
+          + '<span class="cnt">'+b.working+'/'+b.total+'명 근무</span></div>'
+          + '<div class="bd">'+rows+'</div></div>';
+    });
+    document.getElementById('boardGrid').innerHTML=html;
+  }
+
+  function shiftDay(delta){
+    var dt=new Date(viewY,viewM,viewD+delta);
+    viewY=dt.getFullYear(); viewM=dt.getMonth(); viewD=dt.getDate();
+    render();
+  }
+  document.getElementById('prevD').addEventListener('click',function(){shiftDay(-1);});
+  document.getElementById('nextD').addEventListener('click',function(){shiftDay(1);});
+  document.getElementById('todayB').addEventListener('click',function(){
+    viewY=_t.getFullYear();viewM=_t.getMonth();viewD=_t.getDate();render();
+  });
+
+  render();
+</script>
+<script src="../shared/version.js"></script>
+</body>
+</html>
