@@ -146,7 +146,7 @@
         var lbl=(window.ManagerView)?ManagerView.deptLabel(lastDept):lastDept;
         tbody+='<tr class="deptrow"><td colspan="'+(nd+1)+'">'+esc(lbl)+'</td></tr>';
       }
-      var isDuty=(p.membership==='duty');
+      var isDuty=(p.membership==='duty'||/^duty_\d+$/.test(p.membership));
       tbody+='<tr><td class="namecol">'+esc(p.name||'?')
         +'<span class="deptbadge '+(isDuty?'duty':'out')+'">'+(isDuty?'듀티':'외래')+'</span></td>';
       for(var d2=1;d2<=nd;d2++){

@@ -168,29 +168,29 @@
   // 풀 인원을 듀티로 배치 (새 사람 생성 아님 — 소속 부여 + 부서특성 초기화).
   //   ★ 배치 시 deptAttrs.duty 를 완전체로 만든다: 고유 id·role·color·attributes·prefs.
   //     안 그러면 어댑터가 빈 부서특성을 읽어 직급 undefined·id 충돌·속성 토글 깨짐.
-  function placeInDuty(personId, role){
+  // ward 인자로 특정 듀티 병동 지정 가능(staff에서 호출). 생략 시 현재 활성 병동 DEPT().
+  function placeInDuty(personId, role, ward){
     if(!g.PersonsStore || !personId) return false;
-    // 1) 소속 부여 (deptAttrs.duty = {active:true} 생성)
-    var ok = g.PersonsStore.setMembership(personId, DEPT());
+    var W = (ward && /^duty(_\d+)?$/.test(ward)) ? ward : DEPT();
+    // 1) 소속 부여 (deptAttrs[W] = {active:true} 생성)
+    var ok = g.PersonsStore.setMembership(personId, W);
     if(!ok) return false;
     // 2) 부서특성이 비어있으면(신규 배치) 완전체로 초기화
-    var cur = g.PersonsStore.getDeptAttrs(personId, DEPT()) || {};
+    var cur = g.PersonsStore.getDeptAttrs(personId, W) || {};
     var patch = {};
     if(cur.id===undefined){
-      // 듀티 내부 고유 id 발급: 기존 듀티 인원 id 최대값 + 1 (스케줄·락 키)
       var maxId = 0;
-      g.PersonsStore.listByDept(DEPT()).forEach(function(p){
-        var did = p.deptAttrs && p.deptAttrs[DEPT()] && p.deptAttrs[DEPT()].id;
+      g.PersonsStore.listByDept(W).forEach(function(p){
+        var did = p.deptAttrs && p.deptAttrs[W] && p.deptAttrs[W].id;
         if(typeof did==='number' && did>maxId) maxId=did;
       });
       patch.id = maxId + 1;
     }
-    // 직급: 호출부가 지정한 값(staff에서 사용자 선택) 우선, 없으면 기본 평간호사.
     if(role) patch.role = role;
-    else if(cur.role===undefined) patch.role = '평간호사';   // ★ 기본 평간호사 (수간호사 아님)
+    else if(cur.role===undefined) patch.role = '평간호사';
     if(cur.color===undefined){
       var palette = g.NCOLS || ['#2980B9'];
-      var cnt = g.PersonsStore.listByDept(DEPT()).length;
+      var cnt = g.PersonsStore.listByDept(W).length;
       patch.color = palette[(cnt-1+palette.length)%palette.length];
     }
     if(cur.attributes===undefined) patch.attributes = (typeof g.defaultAttributes==='function') ? g.defaultAttributes() : {};
@@ -198,13 +198,13 @@
     if(cur.carryOver===undefined)  patch.carryOver  = { offBalance:0 };
     if(cur.manualOrder===undefined){
       var maxOrd = -1;
-      g.PersonsStore.listByDept(DEPT()).forEach(function(p){
-        var mo = p.deptAttrs && p.deptAttrs[DEPT()] && p.deptAttrs[DEPT()].manualOrder;
+      g.PersonsStore.listByDept(W).forEach(function(p){
+        var mo = p.deptAttrs && p.deptAttrs[W] && p.deptAttrs[W].manualOrder;
         if(typeof mo==='number' && mo>maxOrd) maxOrd=mo;
       });
       patch.manualOrder = maxOrd + 1;
     }
-    if(Object.keys(patch).length) g.PersonsStore.setDeptAttrs(personId, DEPT(), patch);
+    if(Object.keys(patch).length) g.PersonsStore.setDeptAttrs(personId, W, patch);
     return true;
   }
   // 듀티에서 빼기 (사람 삭제 아님 — 소속 해제. 풀엔 남음).

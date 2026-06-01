@@ -172,7 +172,7 @@
     });
     var vacByPerson = {};
     all.forEach(function(p){
-      if(p.membership==='duty') return;
+      if(_isDuty(p.membership)) return;
       var cs = _read('cal_sched_'+p.membership);
       Object.keys(cs).forEach(function(k){
         if(k.indexOf(p.personId+'|'+y+'|'+m+'|')!==0) return;
