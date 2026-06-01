@@ -130,6 +130,7 @@
   table.cal td.holi{background:var(--warn-bg);}    /* 공휴일 */
   table.cal td.today{outline:2px solid var(--today);outline-offset:-2px;}
   .daynum{font-size:12px;font-weight:700;color:var(--text);}
+  .daycake{font-size:11px;line-height:1;}
   td.blank .daynum{color:var(--text3);}
   td.sun .daynum{color:var(--warn-d);} td.sat .daynum{color:#185FA5;}
   .holiname{display:block;font-size:9px;color:var(--warn-d);line-height:1.15;margin-top:1px;
@@ -551,6 +552,7 @@ function renderRoster(){
         +       '<span class="rbadge">'+escapeHtml(role)+'</span>'
         +       (preg?'<span title="임산부">🤰</span>':'')
         +       (hasFixed?'<span title="요일고정">📌</span>':'')
+        +       (_isBirthdayMonth(p.birthday)?'<span title="이달 생일">🎂</span>':'')
         +     '</span>'
         +   '</span>'
         +   (leaveStr?'<span class="ncv">'+leaveStr+'</span>':'')
@@ -746,6 +748,21 @@ function outSetWeekBasis(v){
   renderRoster();
 }
 
+/* ── 생일 표시 (듀티와 동일 방식) — 생일은 dv6_persons(공유 풀)의 birthday(YYYY-MM-DD) ── */
+function _isBirthdayMonth(bd){
+  if(!bd) return false;
+  var p=String(bd).split('-');
+  return parseInt(p[1],10)===(viewM+1);
+}
+function _birthdaysOnDay(d){
+  var all = window.PersonsStore ? PersonsStore.list() : [];
+  return all.filter(function(p){
+    if(!p.birthday || p.membership!==WARD_ID) return false;   // 이 부서 소속만
+    var bp=String(p.birthday).split('-');
+    return parseInt(bp[1],10)===(viewM+1) && parseInt(bp[2],10)===d;
+  });
+}
+
 /* ── 요일고정 v2: 오전/오후 분리 + 주차 선택 ──
    fw[wk] 형태:
      구버전(문자열)  'half'          → {am:'', pm:'half', weeks:[]}  (반차는 오후만)
@@ -929,6 +946,7 @@ function renderCalendar(){
 
       html += '<td class="'+cls.join(' ')+'" data-day="'+d2+'">'
             +   '<div class="dayhead"><span class="daynum">'+d2+'</span>'
+            +   ((function(){var b=_birthdaysOnDay(d2);return b.length?'<span class="daycake" title="'+escapeHtml(b.map(function(x){return x.name;}).join(', '))+' 생일">🎂</span>':'';})())
             +   (hname ? '<span class="holiname">'+escapeHtml(hname)+'</span>' : '')+'</div>'
             +   renderDayStaff(d2)
             + '</td>';
@@ -1285,12 +1303,13 @@ function shiftMonth(delta){
   if(viewM < 0){ viewM = 11; viewY--; }
   else if(viewM > 11){ viewM = 0; viewY++; }
   renderCalendar();
+  renderRoster();   // 이달 생일 케이크 등 월 의존 표시 갱신
   if(typeof applyFixedWeekday==='function') applyFixedWeekday();
 }
 document.getElementById('prevM').addEventListener('click', function(){ shiftMonth(-1); });
 document.getElementById('nextM').addEventListener('click', function(){ shiftMonth(1); });
 document.getElementById('todayB').addEventListener('click', function(){
-  viewY = _today.getFullYear(); viewM = _today.getMonth(); renderCalendar();
+  viewY = _today.getFullYear(); viewM = _today.getMonth(); renderCalendar(); renderRoster();
 });
 
 /* M3d-3: 뷰 전환 탭 (의사표 ↔ 슬롯) */
