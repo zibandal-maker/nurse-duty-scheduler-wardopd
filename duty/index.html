@@ -7514,8 +7514,7 @@ var _wsTimer; window.addEventListener('resize', function(){ clearTimeout(_wsTime
 // 단일병동 안정화: 시작 시 대시보드 자동 진입 제거
 loadLocal();loadRules();loadSavedHolidays();updateRollbackBtn();_loadAltSettings();render();syncKbChip();
 
-// v3.9.2: 첫 방문/주기적 환영 모달 표시 (DOM 준비 후 약간의 지연)
-setTimeout(showWelcomeIfNeeded, 300);
+// 진입 시 자동 안내문 제거 — 도움말은 ❓ 버튼으로 언제든 열람. 정보·면책은 대시보드로 이동.
 
 // ── PWA service worker 등록 ─────────────────────────────────────────────
 // 오프라인 동작 지원. file:// 프로토콜에서는 동작하지 않음(http/https 필요)

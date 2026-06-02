@@ -76,6 +76,13 @@
         padding:16px 18px;margin-bottom:14px;}
   .stickybar{position:sticky;top:0;z-index:60;background:var(--bg);
         box-shadow:0 3px 10px rgba(0,0,0,.06);}
+  .uguide{border:1px solid var(--line);border-radius:var(--r-lg);background:var(--bg);margin-bottom:14px;overflow:hidden;}
+  .uguide>summary{padding:13px 16px;font-size:14px;font-weight:700;color:var(--text);cursor:pointer;list-style:none;}
+  .uguide>summary::-webkit-details-marker{display:none;}
+  .uguide>summary::before{content:'▸ ';color:var(--primary);}
+  .uguide[open]>summary::before{content:'▾ ';}
+  .uguide .ug-body{padding:2px 16px 14px;font-size:13px;line-height:1.65;color:var(--text2);}
+  .uguide .ug-body p{margin:0 0 8px;} .uguide .ug-body b{color:var(--text);}
   .card h2{font-size:14px;margin:0 0 10px;color:var(--text2);font-weight:600;
            text-transform:uppercase;letter-spacing:.04em;}
   /* 자가진단 패널 */
@@ -227,7 +234,7 @@
   /* 인쇄 (M3e-3): 달력만 남기고 나머지 숨김 */
   @media print {
     body{background:#fff;}
-    .sub, .nav, .diag-wrap, #sheetWrap2, .modal-bg,
+    .sub, .nav, .diag-wrap, #sheetWrap2, .modal-bg, .uguide,
     #prevM, #nextM, #todayB, #viewTabs, .note,
     #rosterCard{ display:none !important; }
     .wrap{max-width:none;padding:0;}
@@ -280,6 +287,17 @@
     <h1 id="pageTitle">비교대 근무표</h1>
   </header>
   <p class="sub" id="pageSub">외래·검사실 등 비교대 부서용 근무표. 인력은 직원관리에서 이 부서로 배치합니다.</p>
+
+  <details class="uguide">
+    <summary>📖 외래 근무표 사용 가이드</summary>
+    <div class="ug-body">
+      <p><b>이 부서 인원은?</b> 직원관리에서 이 부서로 배치한 간호사가 왼쪽 명단에 나옵니다. 여기서는 근무만 칠하고, 사람 추가·삭제는 직원관리에서 합니다.</p>
+      <p><b>근무 칠하기</b> — 위 “붓”에서 근무 종류(근무·연차·반차·월차·휴가·경조·OFF)를 고른 뒤, 달력 칸의 오전/오후를 클릭하면 칠해집니다. 숫자키 1~6·0으로 붓을 바꾸고, Backspace로 지우고, Esc로 붓을 해제합니다.</p>
+      <p><b>자동배치</b> — “✨ 자동배치”를 누르면 요일 고정근무를 먼저 반영하고, 평일은 오전·오후 근무, 토요일은 오전만 자동으로 채웁니다(일요일·공휴일 제외). 직접 입력한 칸은 보존됩니다.</p>
+      <p><b>요일 고정·간호사 색</b> — 간호사 카드를 펼쳐 요일 고정근무를 정하거나 색을 바꿀 수 있습니다. 색은 달력 이름에 반영됩니다. 이달 생일자는 이름 옆 🎂로 표시됩니다.</p>
+      <p><b>보기 전환·폭</b> — 달력형/명단형을 전환하고, 우측 “＋／－”로 표 폭을 와이드 화면에 맞게 넓힙니다.</p>
+    </div>
+  </details>
 
   <!-- ③ 상단 툴바 — 스크롤해도 고정 -->
   <div class="card nav stickybar" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;">
