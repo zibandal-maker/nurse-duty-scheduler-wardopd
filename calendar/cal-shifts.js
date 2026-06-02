@@ -26,7 +26,7 @@
       desc:'월차 — 연차성 차감' },
     { code:'half',  label:'반차', color:'#A35200', bg:'#fbe9c8', isLeave:true,  enabled:true,
       desc:'반차 — 0.5일 차감 (오전 또는 오후 한 슬롯)' },
-    { code:'sick',  label:'휴가', color:'#0F6E56', bg:'#d5efe6', isLeave:false, enabled:true,
+    { code:'sick',  label:'휴가', color:'#7A3FB5', bg:'#efe4fa', isLeave:false, enabled:true,
       desc:'병가·일반휴가 (연차 정량과 별개)' },
     { code:'event', label:'경조', color:'#2D5B8A', bg:'#dde6f0', isLeave:false, enabled:true,
       desc:'경조/공가 등 법정 특별휴가 (연차 정량 제외)' },
