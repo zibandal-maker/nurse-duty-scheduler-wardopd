@@ -76,13 +76,6 @@
         padding:16px 18px;margin-bottom:14px;}
   .stickybar{position:sticky;top:0;z-index:60;background:var(--bg);
         box-shadow:0 3px 10px rgba(0,0,0,.06);}
-  .uguide{border:1px solid var(--line);border-radius:var(--r-lg);background:var(--bg);margin-bottom:14px;overflow:hidden;}
-  .uguide>summary{padding:13px 16px;font-size:14px;font-weight:700;color:var(--text);cursor:pointer;list-style:none;}
-  .uguide>summary::-webkit-details-marker{display:none;}
-  .uguide>summary::before{content:'▸ ';color:var(--primary);}
-  .uguide[open]>summary::before{content:'▾ ';}
-  .uguide .ug-body{padding:2px 16px 14px;font-size:13px;line-height:1.65;color:var(--text2);}
-  .uguide .ug-body p{margin:0 0 8px;} .uguide .ug-body b{color:var(--text);}
   .card h2{font-size:14px;margin:0 0 10px;color:var(--text2);font-weight:600;
            text-transform:uppercase;letter-spacing:.04em;}
   /* 자가진단 패널 */
@@ -129,7 +122,8 @@
   .viewtabs .vtab.on{background:var(--primary);color:#fff;}
   table.cal{width:100%;border-collapse:collapse;table-layout:fixed;}
   table.cal th{font-size:12px;font-weight:700;padding:6px 0;color:var(--text2);
-       border-bottom:1px solid var(--line);}
+       border-bottom:1px solid var(--line);
+       position:sticky;top:0;z-index:30;background:var(--bg);box-shadow:0 1px 0 var(--line);}
   table.cal th.sun{color:var(--warn);} table.cal th.sat{color:var(--primary);}
   table.cal td{border:1px solid var(--line);height:64px;vertical-align:top;padding:4px 5px;
        position:relative;}
@@ -278,6 +272,7 @@
   .sheet-legend span{display:inline-flex;align-items:center;gap:5px;}
   .sheet-legend i{width:11px;height:11px;border-radius:2px;display:inline-block;border:1px solid var(--line);}
 </style>
+<link rel="stylesheet" href="../shared/uguide.css">
 </head>
 <body>
 <div class="wrap">
@@ -287,17 +282,6 @@
     <h1 id="pageTitle">비교대 근무표</h1>
   </header>
   <p class="sub" id="pageSub">외래·검사실 등 비교대 부서용 근무표. 인력은 직원관리에서 이 부서로 배치합니다.</p>
-
-  <details class="uguide">
-    <summary>📖 외래 근무표 사용 가이드</summary>
-    <div class="ug-body">
-      <p><b>이 부서 인원은?</b> 직원관리에서 이 부서로 배치한 간호사가 왼쪽 명단에 나옵니다. 여기서는 근무만 칠하고, 사람 추가·삭제는 직원관리에서 합니다.</p>
-      <p><b>근무 칠하기</b> — 위 “붓”에서 근무 종류(근무·연차·반차·월차·휴가·경조·OFF)를 고른 뒤, 달력 칸의 오전/오후를 클릭하면 칠해집니다. 숫자키 1~6·0으로 붓을 바꾸고, Backspace로 지우고, Esc로 붓을 해제합니다.</p>
-      <p><b>자동배치</b> — “✨ 자동배치”를 누르면 요일 고정근무를 먼저 반영하고, 평일은 오전·오후 근무, 토요일은 오전만 자동으로 채웁니다(일요일·공휴일 제외). 직접 입력한 칸은 보존됩니다.</p>
-      <p><b>요일 고정·간호사 색</b> — 간호사 카드를 펼쳐 요일 고정근무를 정하거나 색을 바꿀 수 있습니다. 색은 달력 이름에 반영됩니다. 이달 생일자는 이름 옆 🎂로 표시됩니다.</p>
-      <p><b>보기 전환·폭</b> — 달력형/명단형을 전환하고, 우측 “＋／－”로 표 폭을 와이드 화면에 맞게 넓힙니다.</p>
-    </div>
-  </details>
 
   <!-- ③ 상단 툴바 — 스크롤해도 고정 -->
   <div class="card nav stickybar" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;">
@@ -1000,13 +984,8 @@ function renderCalendar(){
     });
   });
   _paintCursorHighlight();   // 재렌더 후 커서 표시 복원 (달력형)
-  // 날짜 칸 클릭 → 편집 모달 (슬롯 외 영역)
-  Array.prototype.forEach.call(body.querySelectorAll('td.daycal'), function(td){
-    td.addEventListener('click', function(){
-      var d = parseInt(td.getAttribute('data-day'), 10);
-      if(d) openEditor(d);
-    });
-  });
+  // 슬롯(오전/오후) 외 영역 클릭은 무시 — 그날 전체 편집 팝업이 뜨던 동작 제거.
+  //   근무 편집은 슬롯 셀(.slotcell) 클릭으로만 이뤄짐.
 
   // 한 날짜 칸의 내용 — 현재 뷰에 따라 분기 (M3d-3)
   function renderDayStaff(d){
@@ -1244,7 +1223,7 @@ function _paintCursorHighlight(){
   var sel='.slotcell[data-pid="'+_cursor.pid+'"][data-day="'+_cursor.day+'"][data-slot="'+_cursor.slot+'"]';
   tables.forEach(function(tbl){
     var cell=tbl.querySelector(sel);
-    if(cell){ cell.classList.add('cursor'); cell.scrollIntoView({block:'nearest',inline:'nearest'}); }
+    if(cell){ cell.classList.add('cursor'); }   // 하이라이트만 — scrollIntoView 제거(클릭 시 화면 급이동 방지)
   });
 }
 // 커서 이동 (dx=날짜/슬롯 가로, dy=사람 세로). 가로는 슬롯(am→pm→다음날am) 단위.
@@ -1830,6 +1809,17 @@ renderCalendar();
 renderPalette();
 if(typeof applyFixedWeekday==='function') applyFixedWeekday();
 </script>
+<script>
+window.UGUIDE_ITEMS = [{
+  icon:'📖', title:'외래 근무표 사용 가이드',
+  html:'<p><b>이 부서 인원은?</b> 직원관리에서 이 부서로 배치한 간호사가 왼쪽 명단에 나옵니다. 사람 추가·삭제는 직원관리에서.</p>'
+    +'<p><b>근무 칠하기</b> — 위 “붓”에서 종류(근무·연차·반차·월차·휴가·경조·OFF)를 고른 뒤 달력 칸의 오전/오후를 클릭. 숫자키 1~6·0으로 붓 변경, Backspace 지우기, Esc 붓 해제.</p>'
+    +'<p><b>자동배치</b> — “✨ 자동배치”는 요일 고정근무를 먼저 반영하고 평일 오전·오후, 토요일 오전만 채웁니다(일·공휴일 제외). 직접 입력한 칸은 보존.</p>'
+    +'<p><b>요일 고정·색</b> — 간호사 카드를 펼쳐 요일 고정근무·색 지정. 색은 달력 이름에 반영. 이달 생일자는 🎂.</p>'
+    +'<p><b>보기·폭</b> — 달력형/명단형 전환, 우측 “＋／－”로 표 폭 조절.</p>'
+}];
+</script>
+<script src="../shared/uguide.js"></script>
 <script src="../shared/version.js"></script>
 </body>
 </html>

@@ -51,6 +51,7 @@
   .deptbadge.out{background:var(--out-bg);color:var(--out-fg);}
   .empty-msg{padding:30px;text-align:center;color:var(--muted);font-size:13px;}
 </style>
+<link rel="stylesheet" href="../shared/uguide.css">
 </head>
 <body>
   <div class="stickytop">
@@ -153,6 +154,16 @@ document.getElementById('nextBtn').addEventListener('click', function(){
 
 render();
 </script>
+<script>
+window.UGUIDE_ITEMS = [{
+  icon:'📖', title:'관리자 근무 현황 가이드',
+  html:'<p><b>무엇을 보나요?</b> 관리자 그룹(수간호사단)으로 지정된 인원의 근무를, 각자 소속 부서에서 모아 한 달 매트릭스로 보여줍니다.</p>'
+    +'<p><b>지정 방법</b> — 직원관리 편집창에서 “관리자 그룹(수간호사단)”을 체크하면 여기에 모입니다.</p>'
+    +'<p><b>이름 옆 배지</b> — 그 관리자가 속한 부서(31병동·외과 외래 등)를 표시합니다.</p>'
+    +'<p><b>읽기 전용</b> — 근무 수정은 각 부서 근무표에서 합니다.</p>'
+}];
+</script>
+<script src="../shared/uguide.js"></script>
 <script src="../shared/version.js"></script>
 </body>
 </html>
