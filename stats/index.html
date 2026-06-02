@@ -147,8 +147,9 @@
         tbody+='<tr class="deptrow"><td colspan="'+(nd+1)+'">'+esc(lbl)+'</td></tr>';
       }
       var isDuty=(p.membership==='duty'||/^duty_\d+$/.test(p.membership));
+      var deptNm=(window.ManagerView&&ManagerView.deptLabel)?ManagerView.deptLabel(p.membership):(isDuty?'듀티':'외래');
       tbody+='<tr><td class="namecol">'+esc(p.name||'?')
-        +'<span class="deptbadge '+(isDuty?'duty':'out')+'">'+(isDuty?'듀티':'외래')+'</span></td>';
+        +'<span class="deptbadge '+(isDuty?'duty':'out')+'">'+esc(deptNm)+'</span></td>';
       for(var d2=1;d2<=nd;d2++){
         var c=mat.cells[p.personId+'|'+d2]||{display:'',dept:null};
         var disp=c.display||'';
