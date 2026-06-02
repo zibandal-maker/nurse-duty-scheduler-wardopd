@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="../shared/theme.css">
 <style>
   /* 비교대 고유 보정 — 공통 토큰(theme.css)을 기본값으로 받고, 부서 포인트만 살짝 */
-  :root{ --bd:#d6dde6; --bd2:#c2ccd8; }
+  :root{ --bd:#d6dde6; --bd2:#c2ccd8; --cal-grid:#b9c2cf; }
   *{box-sizing:border-box;}
   body{margin:0;font-family:var(--sans);
        background:var(--bg2);color:var(--text);line-height:1.5;}
@@ -74,8 +74,7 @@
   .sub{color:var(--text2);font-size:13px;margin:2px 0 20px;}
   .card{background:var(--bg);border:1px solid var(--line);border-radius:var(--r-lg);
         padding:16px 18px;margin-bottom:14px;}
-  .stickybar{position:sticky;top:0;z-index:60;background:var(--bg);
-        box-shadow:0 3px 10px rgba(0,0,0,.06);}
+  .stickybar{background:var(--bg);}
   .card h2{font-size:14px;margin:0 0 10px;color:var(--text2);font-weight:600;
            text-transform:uppercase;letter-spacing:.04em;}
   /* 자가진단 패널 */
@@ -122,10 +121,12 @@
   .viewtabs .vtab.on{background:var(--primary);color:#fff;}
   table.cal{width:100%;border-collapse:collapse;table-layout:fixed;}
   table.cal th{font-size:12px;font-weight:700;padding:6px 0;color:var(--text2);
-       border-bottom:1px solid var(--line);
-       position:sticky;top:0;z-index:30;background:var(--bg);box-shadow:0 1px 0 var(--line);}
+       border-bottom:1px solid var(--cal-grid, #c4ccd6);
+       position:sticky;top:var(--caltop-h, 84px);z-index:25;background:var(--bg);box-shadow:0 1px 0 var(--cal-grid,#c4ccd6);}
   table.cal th.sun{color:var(--warn);} table.cal th.sat{color:var(--primary);}
-  table.cal td{border:1px solid var(--line);height:64px;vertical-align:top;padding:4px 5px;
+  /* 월이동·붓 묶음 고정 */
+  .cal-top-sticky{position:sticky;top:0;z-index:40;background:var(--bg);padding-top:6px;margin-bottom:8px;box-shadow:0 4px 8px -4px rgba(0,0,0,.12);}
+  table.cal td{border:1px solid var(--cal-grid, #c4ccd6);height:64px;vertical-align:top;padding:4px 5px;
        position:relative;}
   table.cal td.blank{background:var(--bg2);}     /* 그 달이 아닌 칸 */
   table.cal td.satd{background:rgba(24,95,165,.07);}  /* 토요일 — 듀티와 동일 파란 배색(의료계 토요일 근무) */
@@ -302,6 +303,7 @@
   <div class="main-col">
   <!-- M2c: 월 캘린더 그리드 골격 (셀 내용은 M2d에서) -->
   <div class="card">
+    <div class="cal-top-sticky" id="calTopSticky">
     <div class="cal-head">
       <button id="prevM" title="이전 달">‹</button>
       <span class="mlabel" id="mLabel">—</span>
@@ -317,8 +319,9 @@
         <button class="toolbtn" id="calWide" title="넓게" style="padding:2px 8px">＋</button>
       </span>
     </div>
-    <div class="palette-box" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;align-items:center;padding:8px 10px;background:var(--bg2);border:1px solid var(--bd);border-radius:9px;">
+    <div class="palette-box" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 10px;background:var(--bg2);border:1px solid var(--bd);border-radius:9px;">
       <span style="font-size:11px;color:var(--text2);margin-right:2px;font-weight:600;">붓:</span>
+    </div>
     </div>
     <table class="cal" id="calTable">
       <colgroup>
@@ -1175,7 +1178,7 @@ function renderPalette(){
     box.appendChild(er);
   });
 }
-function setBrush(code){ _brush = code; renderPalette(); }
+function setBrush(code){ _brush = code; renderPalette(); if(typeof _syncCalTopHeight==='function') _syncCalTopHeight(); }
 
 var _calOnly = false;
 var _sheetPeople = [];          // 현재 명단형 사람 순서 (커서 ↑↓ 이동용)
@@ -1808,6 +1811,15 @@ try { if(window.CalViewPref) { CalViewPref.load(); syncViewTabs(); } } catch(e){
 renderCalendar();
 renderPalette();
 if(typeof applyFixedWeekday==='function') applyFixedWeekday();
+
+// 고정 묶음(월이동·붓) 높이를 측정해 요일헤더 sticky 위치를 맞춘다.
+function _syncCalTopHeight(){
+  var t=document.getElementById('calTopSticky');
+  if(t){ document.documentElement.style.setProperty('--caltop-h', t.offsetHeight + 'px'); }
+}
+window.addEventListener('load', _syncCalTopHeight);
+window.addEventListener('resize', _syncCalTopHeight);
+setTimeout(_syncCalTopHeight, 100);
 </script>
 <script>
 window.UGUIDE_ITEMS = [{
