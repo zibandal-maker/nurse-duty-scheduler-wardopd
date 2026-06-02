@@ -73,6 +73,7 @@
 <script src="../shared/utils.js"></script>
 <script src="../shared/calendar-store.js"></script>
 <script src="../shared/persons-store.js"></script>
+<script src="../shared/dept-registry.js"></script>
 <script src="./../calendar/cal-shifts.js"></script>
 <script src="../shared/manager-view.js"></script>
 <script>
@@ -85,10 +86,13 @@ var _t = new Date();
 var viewY = _t.getFullYear();
 var viewM = _t.getMonth();   // 0-indexed
 
+function _isDutyMem(m){ return m==='duty' || /^duty_\d+$/.test(m); }
 function deptBadge(m){
-  if(m==='duty') return '<span class="deptbadge duty">듀티</span>';
-  if(m==='outpatient') return '<span class="deptbadge out">비교대</span>';
-  return '';
+  if(!m) return '';
+  // 단일 소스: ManagerView.deptLabel (dept-registry 부서명 우선 = 31병동·52병동·외과 외래…)
+  var lab = (window.ManagerView && ManagerView.deptLabel) ? ManagerView.deptLabel(m) : m;
+  var cls = _isDutyMem(m) ? 'duty' : 'out';
+  return '<span class="deptbadge '+cls+'">'+escapeHtml(lab)+'</span>';
 }
 
 function render(){
@@ -127,7 +131,7 @@ function render(){
     var tr = '<td class="namecol">'+escapeHtml(p.name||'(이름 없음)')+deptBadge(p.membership)+'</td>';
     for(var d=1; d<=nd; d++){
       var c = mat.cells[p.personId+'|'+d] || {dept:null,display:''};
-      var ccls = 'cell ' + (c.display ? (c.dept==='duty'?'duty':(c.dept==='outpatient'?'out':'')) : 'empty');
+      var ccls = 'cell ' + (c.display ? (_isDutyMem(c.dept)?'duty':'out') : 'empty');
       tr += '<td class="'+ccls+'">'+(c.display ? escapeHtml(c.display) : '·')+'</td>';
     }
     return '<tr>'+tr+'</tr>';

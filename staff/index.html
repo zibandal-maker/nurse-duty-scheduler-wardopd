@@ -8,7 +8,14 @@
 <style>
   *{box-sizing:border-box;}
   body{margin:0;font-family:var(--sans);background:var(--bg2);color:var(--text);line-height:1.5;}
-  .wrap{max-width:860px;margin:0 auto;padding:24px 16px 48px;}
+  .topbar{position:fixed;top:0;left:0;right:0;height:48px;z-index:100;display:flex;align-items:center;gap:14px;
+    padding:0 18px;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line);box-shadow:0 1px 6px rgba(0,0,0,.04);}
+  .topbar .topback{display:inline-flex;align-items:center;gap:4px;font-size:14px;font-weight:600;
+    color:var(--primary);text-decoration:none;padding:6px 12px;border-radius:8px;transition:background .12s;}
+  .topbar .topback:hover{background:var(--primary-bg);}
+  .topbar .topbar-title{font-size:14px;font-weight:700;color:var(--text2);}
+  .wrap{max-width:860px;margin:0 auto;padding:64px 16px 48px;}
   header{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
   header .ico{font-size:28px;}
   h1{font-size:20px;margin:0;color:var(--primary-d);}
@@ -33,6 +40,13 @@
   .stafftable{width:100%;border-collapse:collapse;}
   .stafftable th,.stafftable td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);font-size:13px;}
   .stafftable th{font-size:11px;color:var(--text2);font-weight:700;text-transform:uppercase;letter-spacing:.04em;}
+  .stafftable tr.deptgroup{cursor:pointer;user-select:none;}
+  .stafftable tr.deptgroup td{background:#f3f6fb;font-size:13px;padding:8px;border-bottom:1px solid var(--line);}
+  .stafftable tr.deptgroup:hover td{background:#eaf0f8;}
+  .stafftable tr.deptgroup .caret{display:inline-block;width:14px;color:var(--text2);font-size:10px;}
+  .stafftable tr.deptgroup .gcount{font-size:11px;color:var(--text2);font-weight:600;margin-left:4px;}
+  .stafftable tr.deptgroup.duty td{background:#eef4fc;border-left:3px solid #0C447C;}
+  .stafftable tr.deptgroup.outpatient td{background:#fbf3ec;border-left:3px solid #9A5B16;}
   .stafftable td.c{text-align:center;} .stafftable td.r{text-align:right;}
   .stafftable .pavatar{width:30px;height:30px;border-radius:50%;background:var(--primary-bg);
        color:var(--primary-d);font-weight:700;display:inline-flex;align-items:center;justify-content:center;
@@ -94,6 +108,10 @@
 </style>
 </head>
 <body>
+<div class="topbar">
+  <a href="../index.html" class="topback">← 메인으로</a>
+  <span class="topbar-title">직원 관리</span>
+</div>
 <div class="wrap">
 
   <header>
@@ -116,10 +134,6 @@
       <div class="check" id="diag"><div class="row"><span class="val">진단 중…</span></div></div>
     </div>
   </details>
-
-  <div class="card nav">
-    <a href="../index.html">← 부서 선택으로</a>
-  </div>
 
 </div>
 
@@ -250,32 +264,75 @@ function deptBadge(m){
   else lab = DEPT_LABEL[m] || m;
   return '<span class="badge-dept '+cls+'">'+escapeHtml(lab)+'</span>';
 }
+var _collapsedDepts = {};   // {deptId: true} 접힌 부서
 function renderList(){
   var people = (window.PersonsStore? PersonsStore.list():[]);
-  people.sort(function(a,b){ return (a.name||'').localeCompare(b.name||'', 'ko'); });
   document.getElementById('staffCount').textContent = people.length+'명';
   var tbl = document.getElementById('staffTable');
   if(people.length===0){
     tbl.innerHTML = '<tr><td><div class="empty">등록된 직원이 없습니다. [+ 신규 등록]으로 추가하세요.</div></td></tr>';
     return;
   }
-  var head = '<thead><tr><th>이름</th><th>소속</th><th>생일</th><th class="r">연차</th><th></th></tr></thead>';
-  var rows = people.map(function(p){
-    var av = p.photo ? '<span class="pavatar"><img src="'+escapeHtml(p.photo)+'"></span>'
-                     : '<span class="pavatar">'+escapeHtml(initial(p.name))+'</span>';
-    var mgr = p.isManager ? '<span class="badge-mgr">관리</span>' : '';
-    var vac = (typeof p.vacTotal==='number') ? p.vacTotal+'일' : '—';
-    return '<tr>'
-      + '<td><div style="display:flex;align-items:center;gap:8px;">'+av+'<b>'+escapeHtml(p.name||'(이름없음)')+'</b>'+mgr+'</div></td>'
-      + '<td>'+deptBadge(p.membership)+'</td>'
-      + '<td>'+escapeHtml(p.birthday||'—')+'</td>'
-      + '<td class="r">'+vac+'</td>'
-      + '<td class="r"><button class="editbtn" data-pid="'+escapeHtml(p.personId)+'">편집</button></td>'
-      + '</tr>';
+  // 부서별 그룹핑
+  var groups = {};   // deptId(또는 '') → [people]
+  people.forEach(function(p){ var k=p.membership||''; (groups[k]=groups[k]||[]).push(p); });
+  // 부서 정렬 순서: 듀티 병동 → 외래 → 기타 → 미배정
+  var order = [];
+  if(window.DeptRegistry){
+    DeptRegistry.listByKind('duty').forEach(function(d){ if(groups[d.id]) order.push(d.id); });
+    ['outpatient','doctor','admin'].forEach(function(kind){
+      DeptRegistry.listByKind(kind).forEach(function(d){ if(groups[d.id]) order.push(d.id); });
+    });
+  }
+  // 레지스트리에 없지만 데이터에 있는 소속(레거시 'duty' 등) 보충
+  Object.keys(groups).forEach(function(k){ if(k && order.indexOf(k)<0) order.push(k); });
+  if(groups['']) order.push('');   // 미배정은 맨 끝
+
+  function deptName(k){
+    if(!k) return '미배정';
+    if(window.ManagerView && ManagerView.deptLabel) return ManagerView.deptLabel(k);
+    if(window.DeptRegistry && DeptRegistry.get(k)) return DeptRegistry.get(k).name;
+    return k==='duty'?'듀티':k;
+  }
+
+  var html='';
+  order.forEach(function(k){
+    var members = groups[k];
+    members.sort(function(a,b){ return (a.name||'').localeCompare(b.name||'', 'ko'); });
+    var collapsed = !!_collapsedDepts[k];
+    var kindCls = !k ? 'none' : (k==='duty'||/^duty_\d+$/.test(k) ? 'duty' : String(k).split('_')[0]);
+    // 부서 헤더 행 (클릭으로 접기/펴기)
+    html += '<tr class="deptgroup '+kindCls+'" data-dept="'+escapeHtml(k)+'">'
+      + '<td colspan="5"><span class="caret">'+(collapsed?'▶':'▼')+'</span> '
+      + '<b>'+escapeHtml(deptName(k))+'</b> <span class="gcount">'+members.length+'명</span></td></tr>';
+    if(collapsed) return;
+    members.forEach(function(p){
+      var av = p.photo ? '<span class="pavatar"><img src="'+escapeHtml(p.photo)+'"></span>'
+                       : '<span class="pavatar">'+escapeHtml(initial(p.name))+'</span>';
+      var mgr = p.isManager ? '<span class="badge-mgr">관리</span>' : '';
+      var vac = (typeof p.vacTotal==='number') ? p.vacTotal+'일' : '—';
+      html += '<tr class="memberrow">'
+        + '<td><div style="display:flex;align-items:center;gap:8px;padding-left:14px;">'+av+'<b>'+escapeHtml(p.name||'(이름없음)')+'</b>'+mgr+'</div></td>'
+        + '<td>'+deptBadge(p.membership)+'</td>'
+        + '<td>'+escapeHtml(p.birthday||'—')+'</td>'
+        + '<td class="r">'+vac+'</td>'
+        + '<td class="r"><button class="editbtn" data-pid="'+escapeHtml(p.personId)+'">편집</button></td>'
+        + '</tr>';
+    });
   });
-  tbl.innerHTML = head + '<tbody>'+rows.join('')+'</tbody>';
+  var head = '<thead><tr><th>이름</th><th>소속</th><th>생일</th><th class="r">연차</th><th></th></tr></thead>';
+  tbl.innerHTML = head + '<tbody>'+html+'</tbody>';
+  // 편집 버튼
   Array.prototype.forEach.call(tbl.querySelectorAll('.editbtn'), function(b){
-    b.addEventListener('click', function(){ openStaff(b.getAttribute('data-pid')); });
+    b.addEventListener('click', function(e){ e.stopPropagation(); openStaff(b.getAttribute('data-pid')); });
+  });
+  // 부서 헤더 접기/펴기
+  Array.prototype.forEach.call(tbl.querySelectorAll('.deptgroup'), function(h){
+    h.addEventListener('click', function(){
+      var k=h.getAttribute('data-dept');
+      _collapsedDepts[k]=!_collapsedDepts[k];
+      renderList();
+    });
   });
 }
 
