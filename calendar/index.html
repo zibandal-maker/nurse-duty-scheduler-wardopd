@@ -14,7 +14,7 @@
   .wrap{max-width:min(var(--wrap-w, 1400px), 97vw);margin:0 auto;padding:24px 16px 48px;transition:max-width .15s;}
   /* 캘린더 중심 레이아웃: 좌측 사이드(간호사 관리) + 메인(캘린더) */
   .layout{display:flex;gap:18px;align-items:flex-start;}
-  .layout .side-col{flex:0 0 270px;order:-1;position:sticky;top:16px;}
+  .layout .side-col{flex:0 0 300px;order:-1;position:sticky;top:16px;}
   .layout .main-col{flex:1 1 auto;min-width:0;order:1;}
   @media(max-width:820px){
     .layout{flex-direction:column;}
@@ -144,15 +144,15 @@
   table.cal td.daycal{height:auto;min-height:78px;vertical-align:top;padding:4px;}
   .dayhead{display:flex;align-items:baseline;justify-content:center;gap:4px;margin-bottom:2px;}
   .staffwrap{display:flex;flex-direction:column;gap:2px;}
-  .staffrow{display:grid;grid-template-columns:46px 1fr 1fr;align-items:stretch;
-       gap:3px;font-size:13px;}
+  .staffrow{display:grid;grid-template-columns:62px 1fr 1fr;align-items:stretch;
+       gap:2px;font-size:13px;}
   .staffrow .sname{font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;
-       white-space:nowrap;align-self:center;padding:2px 4px;}
-  .staffrow .slot{display:flex;align-items:center;justify-content:center;min-height:20px;}
-  .staffrow .slot .badge{display:block;width:100%;border-radius:4px;padding:2px 3px;
+       white-space:nowrap;align-self:center;padding:1px 3px;}
+  .staffrow .slot{display:flex;align-items:center;justify-content:center;min-height:18px;}
+  .staffrow .slot .badge{display:block;width:100%;border-radius:4px;padding:1px 2px;
        font-size:12px;font-weight:600;text-align:center;overflow:hidden;text-overflow:ellipsis;
        white-space:nowrap;box-sizing:border-box;}
-  .staffrow .slot .empty{display:block;width:100%;border-radius:4px;padding:2px 3px;
+  .staffrow .slot .empty{display:block;width:100%;border-radius:4px;padding:1px 2px;
        font-size:12px;text-align:center;color:#c4cfdb;box-sizing:border-box;
        border:1px dashed transparent;}
   .staffrow .slot.am{border-right:1px dashed var(--line);}
@@ -228,44 +228,38 @@
   .setrow .opt.on{background:var(--primary);color:#fff;border-color:var(--primary);}
   /* 인쇄 (M3e-3): 달력만 남기고 나머지 숨김 */
   /* 화면에선 인쇄 시트 숨김 */
-  #printSheet{ display:none; }
+  #printTitle{ display:none; }
   @media print {
-    @page { size: A4 landscape; margin: 8mm; }
-    /* 화면 UI 전부 숨기고 인쇄 시트만 */
-    body > *, .wrap > * { visibility:hidden; }
-    #printSheet, #printSheet * { visibility:visible; }
-    #printSheet{ display:block; position:absolute; left:0; top:0; width:100%; }
-    body{ background:#fff; margin:0; }
-    .ug-corner, .ug-pop{ display:none !important; }
-    /* 색이 그대로 인쇄되도록 */
-    #printSheet, #printSheet *{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-    .ps-title{ font-size:15px; font-weight:800; margin:0 0 6px; color:#111; }
-    .ps-sub{ font-size:10px; color:#333; margin:0 0 8px; }
-    table.psheet{ border-collapse:collapse; width:100%; table-layout:fixed; font-size:9px; }
-    table.psheet th, table.psheet td{ border:0.6pt solid #555; text-align:center; padding:1px 0;
-       overflow:hidden; white-space:nowrap; }
-    table.psheet th{ background:#e6ebf2; color:#111; font-weight:700; }
-    table.psheet th.psun{ background:#f6d9d9; } table.psheet th.psat{ background:#d9e6f6; }
-    table.psheet th.pholi{ background:#f8e3c8; }
-    table.psheet td.pname{ text-align:left; padding:1px 4px; font-weight:700; color:#111;
-       white-space:nowrap; width:64px; background:#f3f5f8; }
-    table.psheet col.cname{ width:64px; }
-    /* 슬롯 2분할(오전/오후) */
-    table.psheet td .ps-ampm{ display:flex; flex-direction:column; line-height:1.05; }
-    table.psheet td .ps-am, table.psheet td .ps-pm{ padding:0; font-weight:700; }
-    table.psheet td .ps-am{ border-bottom:0.4pt dotted #999; }
-    /* 근무종류별 인쇄색 — 진하고 또렷하게 */
-    .psw{ background:#bfe8d2; color:#0a4d2e; }   /* 근무 */
-    .psv{ background:#f5d59a; color:#7a4708; }   /* 연차 */
-    .psh{ background:#f3c98f; color:#7a3d00; }   /* 반차 */
-    .psm{ background:#f0d09a; color:#74470a; }   /* 월차 */
-    .pss{ background:#dcc4f2; color:#4a1d75; }   /* 휴가 */
-    .pse{ background:#bcd0ea; color:#1c3c63; }   /* 경조 */
-    .pso{ background:#dcdad3; color:#4d4940; }   /* OFF */
-    table.psheet td.poff{ background:#f4f5f6; }   /* 일/공휴일 빈칸 */
-    .ps-legend{ margin-top:8px; font-size:9px; color:#222; display:flex; gap:10px; flex-wrap:wrap; }
-    .ps-legend span{ display:inline-flex; align-items:center; gap:3px; }
-    .ps-legend i{ display:inline-block; width:11px; height:9px; border:0.4pt solid #555; }
+    @page { size: A4 landscape; margin: 6mm; }
+    body{ background:#fff !important; margin:0; }
+    /* 달력 카드와 인쇄 제목만 남기고 전부 숨김 */
+    .stickybar, .sub, header, #sheetWrap2, .side-col, .uguide, .ug-corner, .ug-pop,
+    .palette-box, #viewTabs, #prevM, #nextM, #todayB, #calCopyPrev, #calNarrow, #calWide,
+    #calHint, .modal-bg { display:none !important; }
+    .wrap{ max-width:none !important; width:100% !important; padding:0 !important; margin:0 !important; }
+    .layout{ display:block !important; }
+    .main-col{ width:100% !important; }
+    .card{ border:0 !important; box-shadow:none !important; padding:0 !important; margin:0 !important; }
+    .cal-top-sticky{ position:static !important; box-shadow:none !important; padding:0 !important; margin:0 0 4px !important; }
+    .cal-head{ display:none !important; }
+    #printTitle{ display:block !important; font-size:14px; font-weight:800; color:#111; margin:0 0 5px; text-align:center; }
+    /* 색 보존 */
+    *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+    /* 달력 그리드 — 한 페이지에 꽉 차게 */
+    table.cal{ width:100% !important; table-layout:fixed; font-size:8.5px !important; }
+    table.cal th{ position:static !important; box-shadow:none !important; border:0.5pt solid #888 !important;
+       background:#e9eef5 !important; color:#111 !important; padding:2px 0 !important; font-size:9px !important; }
+    table.cal th.sun{ background:#f6dada !important; } table.cal th.sat{ background:#dae6f6 !important; }
+    table.cal td{ border:0.5pt solid #888 !important; height:auto !important; padding:1px 2px !important;
+       vertical-align:top; }
+    table.cal td.satd{ background:#eef4fb !important; } table.cal td.sund{ background:#fbf1f1 !important; }
+    table.cal td.holi{ background:#fbf0dc !important; }
+    .daynum{ font-size:9px !important; font-weight:700 !important; }
+    .holiname{ font-size:7px !important; }
+    /* 셀 안 근무자 줄 — 작게 빽빽이, 색 진하게 */
+    .staffrow{ font-size:7.5px !important; line-height:1.15 !important; margin:0 !important; }
+    .staffrow .nm{ font-size:7.5px !important; }
+    .staffrow .slot .badge{ padding:0 1px !important; font-size:7px !important; }
   }
   /* 출석부 매트릭스 (M2d) */
   .sheet-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);}
@@ -331,6 +325,7 @@
   <div class="main-col">
   <!-- M2c: 월 캘린더 그리드 골격 (셀 내용은 M2d에서) -->
   <div class="card">
+    <div id="printTitle"></div>
     <div class="cal-top-sticky" id="calTopSticky">
     <div class="cal-head">
       <button id="prevM" title="이전 달">‹</button>
@@ -388,9 +383,6 @@
       </div>
     </div>
   </details>
-
-  <!-- 인쇄 전용 시트 (가로 한 페이지 매트릭스). 화면엔 숨김, 인쇄 시에만 표시. -->
-  <div id="printSheet" aria-hidden="true"></div>
 
   </div><!-- /main-col -->
   <div class="side-col">
@@ -1537,68 +1529,26 @@ function copyPrevMonth(){
   if(typeof flashTool==='function') flashTool('지난달 복사: '+copied+'칸 ('+skipped+'칸은 기존 유지)');
 }
 
-document.getElementById('btnPrint').addEventListener('click', function(){ buildPrintSheet(); window.print(); });
+document.getElementById('btnPrint').addEventListener('click', function(){ printCalendar(); });
 
-// 인쇄 전용 가로 매트릭스 생성 (사람 × 날짜, 오전/오후 2분할, 단축 코드 + 진한 색)
-function buildPrintSheet(){
-  var box=document.getElementById('printSheet'); if(!box) return;
+// 인쇄: 현재 달력형(탁상 달력) 그대로 가로 한 페이지로. 달력형이 아니면 전환 후 인쇄, 복귀.
+function printCalendar(){
   var deptNm = (window.DeptRegistry && DeptRegistry.get(WARD_ID)) ? DeptRegistry.get(WARD_ID).name
              : (document.getElementById('pageTitle') ? document.getElementById('pageTitle').textContent : '근무표');
-  var total = ndays(viewY, viewM);
-  var people = (window.OutpatientAdapter) ? OutpatientAdapter.listMembers(WARD_ID)
-             : ((window.PersonsStore && PersonsStore.listByDept) ? PersonsStore.listByDept(WARD_ID) : []);
-  // 단축 코드 + 색 클래스
-  var SHORT={work:'근',vac:'연',half:'반',month:'월',sick:'휴',event:'경',off:'O'};
-  var CLS={work:'psw',vac:'psv',half:'psh',month:'psm',sick:'pss',event:'pse',off:'pso'};
-  function slotCell(s){
-    if(!s||!s.code) return '';
-    return '<span class="'+(CLS[s.code]||'')+'" style="display:block">'+(SHORT[s.code]||'')+'</span>';
+  var t=document.getElementById('printTitle');
+  if(t) t.textContent = deptNm + ' — ' + viewY + '년 ' + MONTH_KO[viewM] + ' 근무표';
+  // 달력형으로 강제 전환(슬롯형이면 매트릭스라 인쇄 부적합)
+  var prevView = (window.CalViewPref) ? CalViewPref.get('view') : 'doctor';
+  if(prevView !== 'doctor'){
+    if(window.CalViewPref) CalViewPref.set('view','doctor');
+    renderCalendar();
   }
-  var colg='<colgroup><col class="cname">';
-  for(var c=0;c<total;c++) colg+='<col>';
-  colg+='</colgroup>';
-  // 헤더
-  var thead='<thead><tr><th class="pname">이름＼날짜</th>';
-  for(var d=1; d<=total; d++){
-    var wd=dow(viewY,viewM,d), holi=CalendarStore.isHoliday(viewY,viewM+1,d);
-    var hc = holi?'pholi':(wd===6?'psat':(wd===0?'psun':''));
-    thead+='<th class="'+hc+'">'+d+'<br>'+WD_KO[wd]+'</th>';
+  window.print();
+  // 인쇄 후 원래 보기로 복귀
+  if(prevView !== 'doctor'){
+    if(window.CalViewPref) CalViewPref.set('view', prevView);
+    renderCalendar();
   }
-  thead+='</tr></thead>';
-  // 본문
-  var tbody='<tbody>';
-  if(!people.length){
-    tbody+='<tr><td class="pname">—</td><td colspan="'+total+'">소속 간호사 없음</td></tr>';
-  } else {
-    people.forEach(function(p){
-      var pid=p.personId;
-      var dn=(p.deptAttrs && p.deptAttrs[WARD_ID])?p.deptAttrs[WARD_ID]:{};
-      var role=dn.role?(' ('+dn.role+')'):'';
-      tbody+='<tr><td class="pname">'+escapeHtml(p.name||'(이름없음)')+escapeHtml(role)+'</td>';
-      for(var d2=1; d2<=total; d2++){
-        var wd2=dow(viewY,viewM,d2), holi2=CalendarStore.isHoliday(viewY,viewM+1,d2);
-        var cell=(window.CalScheduleStore)?CalScheduleStore.get(pid,viewY,viewM,d2):null;
-        var am=cell?cell.am:null, pm=cell?cell.pm:null;
-        var hasData=(am&&am.code)||(pm&&pm.code);
-        if((wd2===0||holi2)&&!hasData){ tbody+='<td class="poff"></td>'; }
-        else{
-          tbody+='<td><div class="ps-ampm"><span class="ps-am">'+slotCell(am)
-              +  '</span><span class="ps-pm">'+slotCell(pm)+'</span></div></td>';
-        }
-      }
-      tbody+='</tr>';
-    });
-  }
-  tbody+='</tbody>';
-  var legend='<div class="ps-legend">'
-    +'<span><i class="psw"></i>근무</span><span><i class="psv"></i>연차</span>'
-    +'<span><i class="psh"></i>반차</span><span><i class="psm"></i>월차</span>'
-    +'<span><i class="pss"></i>휴가</span><span><i class="pse"></i>경조</span>'
-    +'<span><i class="pso"></i>OFF</span><span>칸: 위=오전 / 아래=오후</span></div>';
-  box.innerHTML = '<div class="ps-title">'+escapeHtml(deptNm)+' — '+viewY+'년 '+MONTH_KO[viewM]+'</div>'
-    + '<div class="ps-sub">인원 '+people.length+'명 · '+total+'일</div>'
-    + '<table class="psheet">'+colg+thead+tbody+'</table>'
-    + legend;
 }
 
 // ⑮ 통계 — 1)일자별 인원 2)사람별 근무일 3)연차 소진
