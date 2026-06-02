@@ -25,6 +25,9 @@
   *{box-sizing:border-box}
   body{margin:0;font-family:'Pretendard',-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;
        background:var(--bg);color:var(--text);padding:18px;}
+  .stickytop{position:sticky;top:0;z-index:50;background:var(--bg);margin:-18px -18px 12px;padding:14px 18px 10px;border-bottom:1px solid var(--line);box-shadow:0 2px 8px rgba(0,0,0,.04);}
+  .stickytop .top{margin-bottom:8px;}
+  .stickytop .navbar{margin-bottom:0;}
   .top{display:flex;align-items:center;gap:12px;margin-bottom:6px;}
   .top a.back{font-size:13px;color:var(--navy);text-decoration:none;font-weight:600;}
   h1{font-size:20px;font-weight:800;color:var(--navy-deep);margin:0;}
@@ -63,19 +66,20 @@
 </style>
 </head>
 <body>
+  <div class="stickytop">
   <div class="top">
     <a class="back" href="../index.html">← 부서 선택으로</a>
     <a class="back" href="../overview/index.html" style="color:#1F8A5E">📋 오늘 현황판</a>
     <h1>📊 월 통계</h1>
   </div>
-  <p class="sub">월 단위 부서별 인원·근무일·연차 통계와 전체 스케줄 매트릭스. 일일 현황은 현황판에서.</p>
-
   <div class="navbar">
     <button id="prevM">‹ 이전</button>
     <span class="mlabel" id="mLabel">—</span>
     <button id="nextM">다음 ›</button>
     <button id="todayB">오늘</button>
   </div>
+  </div>
+  <p class="sub">월 단위 부서별 인원·근무일·연차 통계와 전체 스케줄 매트릭스. 일일 현황은 현황판에서.</p>
 
   <!-- 통계 -->
   <div class="stats" id="statsBox"></div>

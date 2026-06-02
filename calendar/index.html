@@ -74,6 +74,8 @@
   .sub{color:var(--text2);font-size:13px;margin:2px 0 20px;}
   .card{background:var(--bg);border:1px solid var(--line);border-radius:var(--r-lg);
         padding:16px 18px;margin-bottom:14px;}
+  .stickybar{position:sticky;top:0;z-index:60;background:var(--bg);
+        box-shadow:0 3px 10px rgba(0,0,0,.06);}
   .card h2{font-size:14px;margin:0 0 10px;color:var(--text2);font-weight:600;
            text-transform:uppercase;letter-spacing:.04em;}
   /* 자가진단 패널 */
@@ -279,8 +281,8 @@
   </header>
   <p class="sub" id="pageSub">외래·검사실 등 비교대 부서용 근무표. 인력은 직원관리에서 이 부서로 배치합니다.</p>
 
-  <!-- ③ 상단 툴바 (하단→상단 이동) -->
-  <div class="card nav" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;">
+  <!-- ③ 상단 툴바 — 스크롤해도 고정 -->
+  <div class="card nav stickybar" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;">
     <a href="../index.html">← 부서 선택으로</a>
     <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;">
       <button class="toolbtn b-report" id="btnStats" title="근무 통계">📊 통계</button>
