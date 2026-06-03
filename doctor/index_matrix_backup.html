@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#1E6DBF">
+<title>의사과 스케줄</title>
+<link rel="stylesheet" href="../shared/theme.css">
+<link rel="stylesheet" href="../shared/uguide.css">
+<style>
+  /* ── 의사 스케줄 골격 (M6 2단계). 색·표기는 doc-render.js, 저장은 doc-schedule-store.js ── */
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg2);color:var(--text);
+       font-family:var(--sans);font-size:14px;line-height:1.5;-webkit-text-size-adjust:100%}
+  a{color:inherit}
+
+  .topbar{position:sticky;top:0;z-index:30;background:var(--primary-d);color:#fff;
+          display:flex;align-items:center;gap:12px;padding:10px 16px;box-shadow:0 2px 8px rgba(12,68,124,.18)}
+  .topbar .back{color:#cfe2f7;text-decoration:none;font-size:14px;white-space:nowrap}
+  .topbar h1{font-size:17px;margin:0;font-weight:700;letter-spacing:-.01em}
+  .topbar .deptname{color:#fff}
+  .topbar .spacer{flex:1}
+  .topbar button{border:0;background:rgba(255,255,255,.16);color:#fff;border-radius:8px;
+                 padding:7px 12px;font-size:13px;cursor:pointer;font-family:inherit}
+  .topbar button:hover{background:rgba(255,255,255,.28)}
+
+  .toolbar{display:flex;align-items:center;gap:10px;padding:12px 16px;flex-wrap:wrap;
+           background:var(--bg);border-bottom:1px solid var(--line)}
+  .monthnav{display:flex;align-items:center;gap:6px}
+  .monthnav button{border:1px solid var(--line2);background:var(--bg);border-radius:8px;
+                   width:32px;height:32px;cursor:pointer;font-size:16px;color:var(--primary-d)}
+  .monthnav .label{font-size:16px;font-weight:700;color:var(--primary-d);min-width:130px;text-align:center}
+  .legend{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--text2)}
+  .legend .chip{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:999px;border:1px solid var(--line2)}
+  .legend .sw{width:11px;height:11px;border-radius:3px;display:inline-block}
+
+  .wrap{padding:16px;overflow:auto}
+  .card{background:var(--bg);border:1px solid var(--line);border-radius:var(--r-lg);
+        padding:12px;box-shadow:0 1px 3px rgba(20,50,90,.05)}
+
+  /* ── 매트릭스: 의사(행) × 날짜(열) ── */
+  table.docTable{border-collapse:collapse;width:max-content;min-width:100%;font-size:12px;
+                 transform-origin:top left}
+  .docTable th,.docTable td{border:1px solid var(--line);text-align:center;vertical-align:middle}
+  .docTable thead th{background:var(--bg3);position:sticky;top:0;z-index:5;
+                     padding:3px 4px;font-weight:600;color:var(--text2);min-width:42px}
+  .docTable thead th.dcol .dnum{font-size:13px;font-weight:700;color:var(--text)}
+  .docTable thead th.dcol .dow{font-size:10px;color:var(--text3)}
+  .docTable thead th.dcol .hol{font-size:9px;color:var(--warn);display:block;line-height:1.1}
+  .docTable thead th.dcol .er{font-size:10px;color:var(--primary-d);display:block;line-height:1.1;font-weight:700}
+  .docTable thead th.dcol.sun .dnum,.docTable thead th.dcol.sun .dow{color:var(--warn)}
+  .docTable thead th.dcol.sat .dnum,.docTable thead th.dcol.sat .dow{color:var(--primary)}
+  .docTable thead th.dcol.holiday{background:#FBE9E7}
+  .docTable th.namecol{position:sticky;left:0;z-index:8;background:var(--bg3);
+                       min-width:96px;text-align:left;padding:4px 8px;font-weight:700;color:var(--text)}
+  .docTable td.namecell{position:sticky;left:0;z-index:6;background:var(--bg);
+                        text-align:left;padding:4px 8px;font-weight:600;white-space:nowrap}
+  .docTable td.namecell .spec{display:block;font-size:10px;font-weight:500;color:var(--text3);margin-top:1px}
+  .docTable thead th.namecol{z-index:9}
+
+  .docTable td.cell{min-width:42px;width:42px;height:44px;cursor:pointer;position:relative;padding:0}
+  .docTable td.cell:hover{outline:2px solid var(--primary);outline-offset:-2px;z-index:4}
+  /* 셀 내부 3층: 상단 메모 / 중앙 D·N 글자 / 하단 배지 — 겹침 방지 */
+  .cell .cinner{position:absolute;inset:0;display:flex;flex-direction:column;
+                align-items:center;justify-content:center;gap:1px;padding:2px 3px 1px}
+  .cell .leftbar{position:absolute;left:0;top:0;bottom:0;width:4px;z-index:1}
+  .cell .ctext{font-size:14px;font-weight:800;line-height:1}
+  .cell .cmemo{font-size:8px;color:var(--text3);max-width:100%;
+               overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cell .cbadges{display:flex;gap:2px;justify-content:center;flex-wrap:wrap;line-height:1}
+  .cell .cb{font-size:9px;font-weight:700;line-height:1.3;min-width:13px;text-align:center;
+            padding:0 2px;border-radius:3px;border:1px solid}
+  .cell.dim{opacity:.5}
+  .cell.empty:hover{background:var(--primary-bg) !important}
+
+  .empty-note{padding:40px 16px;text-align:center;color:var(--text2)}
+  .empty-note a{color:var(--primary);font-weight:600}
+
+  /* ── 셀 편집 모달 (외래 패턴 통일) ── */
+  .modal-bg{position:fixed;inset:0;background:rgba(20,20,18,.45);display:none;
+       align-items:flex-start;justify-content:center;z-index:100;padding:24px 12px;overflow-y:auto}
+  .modal-bg.open{display:flex}
+  .modal{background:var(--bg);border-radius:var(--r-lg);max-width:460px;width:100%;
+       box-shadow:0 24px 60px rgba(0,0,0,.3);overflow:hidden}
+  .modal-head{display:flex;align-items:center;gap:10px;padding:14px 18px;
+       border-bottom:1px solid var(--line);background:var(--bg3)}
+  .modal-head h3{margin:0;font-size:17px;color:var(--primary-d)}
+  .modal-head .mh-sub{font-size:13px;color:var(--text2);font-weight:500}
+  .modal-head .mh-holi{font-size:13px;color:var(--warn-d);font-weight:600}
+  .modal-head .x{margin-left:auto;border:0;background:transparent;font-size:24px;cursor:pointer;
+       color:var(--text2);line-height:1;padding:2px 6px}
+  .modal-body{padding:6px 0}
+  .erow{display:grid;grid-template-columns:64px 1fr;gap:8px;padding:11px 18px;
+       border-bottom:1px solid var(--line);align-items:center}
+  .erow:last-child{border-bottom:none}
+  .erow .elbl{font-weight:700;font-size:14px;color:var(--text2)}
+  .chips{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .chip{border:1px solid var(--line2);background:var(--bg);border-radius:999px;
+       padding:4px 12px;font-size:13px;font-weight:600;cursor:pointer;color:var(--text2);
+       font-family:inherit;line-height:1.4}
+  .chip.on{border-color:transparent;color:#fff}
+  .chip-memo{flex:1;min-width:120px;border:1px solid var(--line2);border-radius:var(--r);
+       padding:6px 10px;font-size:13px;font-family:inherit;box-sizing:border-box}
+  .modal-foot{padding:12px 18px;border-top:1px solid var(--line);display:flex;
+       align-items:center;gap:10px;background:var(--bg2)}
+  .modal-foot .clearbtn{border:1px solid var(--line2);background:var(--bg);color:var(--warn);
+       font-weight:600;border-radius:var(--r);padding:7px 14px;cursor:pointer;font-family:inherit}
+  .modal-foot .savebtn{margin-left:auto;border:0;background:var(--primary);color:#fff;
+       font-weight:700;border-radius:var(--r);padding:7px 18px;cursor:pointer;font-family:inherit}
+  /* 응급실 당직표 행 */
+  .errow{display:grid;grid-template-columns:96px 1fr;gap:10px;padding:7px 18px;align-items:center}
+  .errow:nth-child(odd){background:var(--bg2)}
+  .errow .erday{font-size:13px;font-weight:600;color:var(--text)}
+  .errow .erday .erdow{font-size:11px;color:var(--text3);margin-left:4px}
+  .errow .erday.sun,.errow .erday.sun .erdow{color:var(--warn)}
+  .errow .erday.sat,.errow .erday.sat .erdow{color:var(--primary)}
+  .errow select{width:100%;padding:6px 8px;border:1px solid var(--line2);border-radius:var(--r);
+       font-size:13px;font-family:inherit;background:var(--bg);box-sizing:border-box}
+
+  /* ── 인쇄 (외래 _fitPrintScale 패턴 재사용) ── */
+  #printTitle{display:none}
+  @media print{
+    @page{size:A4 landscape;margin:6mm}
+    .topbar,.toolbar,#uguide,.legend,#app-version-badge,.modal-bg{display:none !important}
+    .wrap{padding:0;overflow:visible}
+    .card{border:0;box-shadow:none;padding:0}
+    #printTitle{display:block;text-align:center;font-size:14px;font-weight:700;margin-bottom:6px;color:#000}
+    table.docTable{transform:scale(var(--print-scale,1));transform-origin:top left}
+    .docTable td.cell:hover{outline:none}
+    .docTable thead th,.docTable td.namecell,.docTable th.namecol{position:static}
+  }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <a class="back" href="../index.html">← 부서</a>
+    <h1>🩺 <span class="deptname" id="deptName">의사과</span> 스케줄</h1>
+    <span class="spacer"></span>
+    <button id="btnErRoster" type="button">🚑 응급실 당직표</button>
+    <button id="btnPrint" type="button">🖨 인쇄</button>
+  </div>
+
+  <div class="toolbar">
+    <div class="monthnav">
+      <button id="prevM" type="button" title="이전 달">‹</button>
+      <span class="label" id="monthLabel">—</span>
+      <button id="nextM" type="button" title="다음 달">›</button>
+    </div>
+    <div class="legend">
+      <span class="chip"><span class="sw" style="background:#FCF3C4;border:1px solid #E6D27A"></span>협진당직</span>
+      <span class="chip"><span class="sw" style="background:#DCEBFB;border:1px solid #A9CBF0"></span>내시경</span>
+      <span class="chip"><span class="sw" style="background:#F7E5CC;border:1px solid #E0BE8A"></span>휴진</span>
+      <span class="chip"><span class="sw" style="background:#C0392B"></span>(X) 콜·협진 금지</span>
+      <span class="chip">D 주간콜 · N 야간콜</span>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="card main-col">
+      <div id="printTitle"></div>
+      <div id="tableHost"><div class="empty-note">로딩 중…</div></div>
+    </div>
+  </div>
+
+  <!-- 셀 편집 모달 -->
+  <div class="modal-bg" id="cellModal">
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-head">
+        <h3 id="cmTitle">셀 편집</h3>
+        <span class="mh-sub" id="cmSub"></span>
+        <span class="mh-holi" id="cmHoli"></span>
+        <button class="x" id="cmClose" type="button" aria-label="닫기">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="erow">
+          <span class="elbl">응급콜</span>
+          <div class="chips" id="cmErCall">
+            <button type="button" class="chip" data-v="">없음</button>
+            <button type="button" class="chip" data-v="D">D 주간콜</button>
+            <button type="button" class="chip" data-v="N">N 야간콜</button>
+          </div>
+        </div>
+        <div class="erow">
+          <span class="elbl">시술</span>
+          <div class="chips" id="cmEndo">
+            <button type="button" class="chip" data-v="0">없음</button>
+            <button type="button" class="chip" data-v="1">내시경</button>
+          </div>
+        </div>
+        <div class="erow">
+          <span class="elbl">협진</span>
+          <div class="chips" id="cmConsult">
+            <button type="button" class="chip" data-v="0">없음</button>
+            <button type="button" class="chip" data-v="1">협진당직</button>
+          </div>
+        </div>
+        <div class="erow">
+          <span class="elbl">금지</span>
+          <div class="chips" id="cmBlock">
+            <button type="button" class="chip" data-v="0">해제</button>
+            <button type="button" class="chip" data-v="1">(X) 콜·협진 금지</button>
+          </div>
+        </div>
+        <div class="erow">
+          <span class="elbl">상태</span>
+          <div class="chips" id="cmStatus">
+            <button type="button" class="chip" data-v="근무">근무</button>
+            <button type="button" class="chip" data-v="휴진">휴진</button>
+          </div>
+        </div>
+        <div class="erow">
+          <span class="elbl">메모</span>
+          <div class="chips">
+            <input class="chip-memo" id="cmMemo" type="text" maxlength="20" placeholder="투석·외래 등 자유 입력">
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="clearbtn" id="cmClear" type="button">전체 비우기</button>
+        <button class="savebtn" id="cmSave" type="button">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 응급실 당직표 관리 모달 (원천 — 모든 의사과가 읽어감) -->
+  <div class="modal-bg" id="erModal">
+    <div class="modal" style="max-width:520px;">
+      <div class="modal-head">
+        <h3>🚑 응급실 당직표</h3>
+        <span class="mh-sub" id="erSub"></span>
+        <button class="x" id="erClose" type="button" aria-label="닫기">×</button>
+      </div>
+      <div class="modal-body" id="erBody" style="max-height:62vh;overflow-y:auto;">
+        <p style="padding:8px 18px;margin:0;font-size:12px;color:var(--text2);line-height:1.5;">
+          모든 의사과가 공유하는 당직표입니다. 여기서 정한 당직의의 성씨가 각 의사과 스케줄 날짜 위에 (성)으로 표시됩니다.</p>
+        <div id="erList"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="savebtn" id="erDone" type="button">닫기</button>
+      </div>
+    </div>
+  </div>
+
+<script src="../shared/utils.js"></script>
+<script src="../shared/calendar-store.js"></script>
+<script src="../shared/persons-store.js"></script>
+<script src="../shared/dept-registry.js"></script>
+<script src="../shared/er-roster-store.js"></script>
+<script src="./doc-schedule-store.js"></script>
+<script src="./doc-render.js"></script>
+<script>
+/* ============================================================
+   doctor/index.html — 의사과 스케줄 화면 본체 (M6 2단계: 골격)
+   ------------------------------------------------------------
+   외래 calendar/index.html 구조를 본떴지만, 셀은 6속성(doc-schedule-store).
+   한 파일 다부서: URL ?dept=doctor_N 으로 부서별 데이터를 그림(파일 안 늘어남).
+   저장 키 접두 DOC_DEPT_ID = doctor_N → 'doc_sched_doctor_N'.
+
+   이번 단계(골격)에서 동작:
+     · 부서 가드, 헤더(요일·공휴일·응급실당직 자리), 매트릭스 렌더, 월 이동, 인쇄.
+     · 셀 클릭 → 편집 팝업은 4단계. 지금은 placeholder(안내).
+     · 응급실 당직 성씨는 5단계. 지금은 헤더에 자리만(빈 값).
+   ============================================================ */
+
+var MONTH_KO = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+var DOW_KO   = ['일','월','화','수','목','금','토'];
+
+// ── 부서 해석 (외래와 동일 패턴) ──────────────────────────────
+function _getDeptFromURL(){
+  try{ return new URLSearchParams(location.search).get('dept') || ''; }catch(_){ return ''; }
+}
+var DOC_DEPT_ID = _getDeptFromURL();   // 예: 'doctor_1'
+window.DOC_DEPT_ID = DOC_DEPT_ID;      // store가 접두로 사용
+var DOC_DEPT_NAME = '';
+(function _resolve(){
+  if(!DOC_DEPT_ID) return;
+  var rec = (window.DeptRegistry && DeptRegistry.get) ? DeptRegistry.get(DOC_DEPT_ID) : null;
+  if(rec) DOC_DEPT_NAME = rec.name;
+})();
+
+// 현재 보는 연·월 (month 0-based)
+var now = new Date();
+var viewY = now.getFullYear();
+var viewM = now.getMonth();
+
+// ── 부서 가드 (외래 _guardDept 패턴) ─────────────────────────
+function _guardDept(){
+  var rec = (DOC_DEPT_ID && window.DeptRegistry) ? DeptRegistry.get(DOC_DEPT_ID) : null;
+  if(rec && rec.kind==='doctor') return true;
+  var msg = !DOC_DEPT_ID ? '부서가 지정되지 않았습니다.'
+          : (rec ? '의사과 부서가 아닙니다 ('+DOC_DEPT_ID+').' : '존재하지 않는 부서입니다 ('+DOC_DEPT_ID+').');
+  document.body.innerHTML =
+    '<div style="max-width:460px;margin:80px auto;padding:30px;text-align:center;'
+    + 'font-family:var(--sans);color:#1a2330">'
+    + '<div style="font-size:40px;margin-bottom:14px">🩺</div>'
+    + '<h1 style="font-size:22px;color:#0C447C;margin:0 0 10px">'+msg+'</h1>'
+    + '<p style="font-size:15px;color:#5B6B7F;line-height:1.6;margin-bottom:22px">'
+    + '의사과 스케줄은 대시보드에서 의사 부서를 선택해 들어가세요.</p>'
+    + '<a href="../index.html" style="display:inline-block;padding:9px 20px;background:#1E6DBF;'
+    + 'color:#fff;border-radius:9px;text-decoration:none;font-weight:600;font-size:16px">← 부서 선택으로</a>'
+    + '</div>';
+  return false;
+}
+
+// ── 의사 명단 (이 부서 소속) ─────────────────────────────────
+function _members(){
+  if(!window.PersonsStore) return [];
+  return PersonsStore.listByDept(DOC_DEPT_ID) || [];
+}
+
+// ── 응급실 당직 성씨 (공유 당직표에서 읽기 전용) ──────────────
+//   ErRosterStore가 원천. 의사과는 성 한 글자만 읽어 헤더에 표시.
+function _erDutyInitial(y, m, d){   // m: 0-based (내부) → store는 1-based
+  if(!window.ErRosterStore) return '';
+  return ErRosterStore.initial(y, m+1, d);
+}
+
+// ── 날짜 유틸 ────────────────────────────────────────────────
+function _daysInMonth(y, m){ return new Date(y, m+1, 0).getDate(); }
+
+// ── 매트릭스 렌더 ────────────────────────────────────────────
+function renderTable(){
+  var host = document.getElementById('tableHost');
+  var members = _members();
+  if(!members.length){
+    host.innerHTML = '<div class="empty-note">이 부서에 배치된 의사가 없습니다.<br>'
+      + '<a href="../staff/index.html">직원관리</a>에서 의사를 ['+escapeHtml(DOC_DEPT_NAME)+'] 부서로 배치하세요.</div>';
+    return;
+  }
+  var ndays = _daysInMonth(viewY, viewM);
+  var DS = window.DocScheduleStore, DR = window.DocRender;
+
+  var html = '<table class="docTable" id="docTable"><thead><tr>';
+  html += '<th class="namecol">의사 \\ 날짜</th>';
+  for(var d=1; d<=ndays; d++){
+    var dow = new Date(viewY, viewM, d).getDay();
+    var isHol = window.CalendarStore ? CalendarStore.isHoliday(viewY, viewM+1, d) : false;
+    var holName = (isHol && window.CalendarStore) ? CalendarStore.name(viewY, viewM+1, d) : '';
+    var er = _erDutyInitial(viewY, viewM, d);
+    var cls = 'dcol' + (dow===0?' sun':'') + (dow===6?' sat':'') + (isHol?' holiday':'');
+    html += '<th class="'+cls+'">'
+      + '<span class="dnum">'+d+'</span>'
+      + '<span class="dow">'+DOW_KO[dow]+'</span>'
+      + (holName ? '<span class="hol">'+escapeHtml(holName.slice(0,3))+'</span>' : '')
+      + (er ? '<span class="er">('+escapeHtml(er)+')</span>' : '')
+      + '</th>';
+  }
+  html += '</tr></thead><tbody>';
+
+  members.forEach(function(p){
+    var da = (p.deptAttrs && p.deptAttrs[DOC_DEPT_ID]) ? p.deptAttrs[DOC_DEPT_ID] : {};
+    var spec = da.specialty ? '<span class="spec">'+escapeHtml(da.specialty)+'</span>' : '';
+    html += '<tr><td class="namecell">'+escapeHtml(p.name||p.personId)+spec+'</td>';
+    for(var d=1; d<=ndays; d++){
+      var cell = DS.get(p.personId, viewY, viewM, d);
+      var v = DR.render(cell);
+      var isEmpty = !v.text && !cell.memo && !v.badges.length && !v.dim && !v.leftBar;
+      var inner = '';
+      if(v.leftBar) inner += '<span class="leftbar" style="background:'+v.leftBar+'"></span>';
+      inner += '<span class="cinner">';
+      if(cell.memo) inner += '<span class="cmemo" title="'+escapeHtml(cell.memo)+'">'+escapeHtml(cell.memo)+'</span>';
+      if(v.text)    inner += '<span class="ctext" style="color:'+v.textColor+'">'+v.text+'</span>';
+      if(v.badges.length){
+        inner += '<span class="cbadges">';
+        v.badges.forEach(function(b){
+          var st = DR.badgeStyle(b.kind);
+          inner += '<span class="cb" title="'+escapeHtml(b.label)+'" '
+            + 'style="background:'+st.bg+';color:'+st.fg+';border-color:'+st.bd+'">'+escapeHtml(b.short||b.label)+'</span>';
+        });
+        inner += '</span>';
+      }
+      inner += '</span>';
+      html += '<td class="cell'+(v.dim?' dim':'')+(isEmpty?' empty':'')+'" style="background:'+v.bg+'" '
+        + 'data-pid="'+escapeHtml(p.personId)+'" data-d="'+d+'">'+inner+'</td>';
+    }
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  host.innerHTML = html;
+
+  // 셀 클릭 → 편집 (4단계 placeholder)
+  Array.prototype.forEach.call(host.querySelectorAll('td.cell'), function(td){
+    td.addEventListener('click', function(){
+      openCellEditor(td.getAttribute('data-pid'), parseInt(td.getAttribute('data-d'),10));
+    });
+  });
+}
+
+// ── 셀 편집 모달 ─────────────────────────────────────────────
+var _editPid = null, _editD = null;       // 편집 중인 셀
+var _draft = null;                         // 편집 중인 셀 임시본
+
+// 칩 on 색 (doc-render COLOR와 정렬). kind별 선택 시 배경색.
+function _chipOnColor(group, val){
+  var C = (window.DocRender && DocRender.COLOR) ? DocRender.COLOR : {};
+  if(group==='cmErCall'){ if(val==='D') return C.dCall||'#1A8C62'; if(val==='N') return C.nCall||'#5B3FA0'; return '#8a8a86'; }
+  if(group==='cmEndo')   return val==='1' ? '#3D7FC4' : '#8a8a86';
+  if(group==='cmConsult')return val==='1' ? '#C9A21A' : '#8a8a86';
+  if(group==='cmBlock')  return val==='1' ? (C.blockBar||'#C0392B') : '#8a8a86';
+  if(group==='cmStatus') return val==='휴진' ? (C.restText||'#9A6618') : '#1A8C62';
+  return '#8a8a86';
+}
+
+// 한 그룹의 칩 동기화 (선택값 표시 + on 색)
+function _syncChips(groupId, selVal){
+  var box = document.getElementById(groupId);
+  if(!box) return;
+  Array.prototype.forEach.call(box.querySelectorAll('.chip'), function(c){
+    var on = (c.getAttribute('data-v') === String(selVal));
+    c.className = 'chip' + (on ? ' on' : '');
+    c.style.background = on ? _chipOnColor(groupId, c.getAttribute('data-v')) : '';
+  });
+}
+
+function _syncAllChips(){
+  _syncChips('cmErCall', _draft.erCall || '');
+  _syncChips('cmEndo', _draft.endo ? '1' : '0');
+  _syncChips('cmConsult', _draft.consult ? '1' : '0');
+  _syncChips('cmBlock', _draft.block ? '1' : '0');
+  _syncChips('cmStatus', _draft.status || '근무');
+}
+
+function openCellEditor(pid, d){
+  _editPid = pid; _editD = d;
+  var cell = window.DocScheduleStore.get(pid, viewY, viewM, d);
+  _draft = {
+    erCall: cell.erCall || '', endo: !!cell.endo, consult: !!cell.consult,
+    block: !!cell.block, status: cell.status || '근무', memo: cell.memo || ''
+  };
+  // 의사 이름
+  var name = pid;
+  _members().forEach(function(p){ if(p.personId===pid) name = p.name||pid; });
+  document.getElementById('cmTitle').textContent = name;
+  document.getElementById('cmSub').textContent = (viewM+1)+'월 '+d+'일 ('+DOW_KO[new Date(viewY,viewM,d).getDay()]+')';
+  // 공휴일 표기
+  var holName = (window.CalendarStore && CalendarStore.isHoliday(viewY, viewM+1, d)) ? CalendarStore.name(viewY, viewM+1, d) : '';
+  document.getElementById('cmHoli').textContent = holName ? '· '+holName : '';
+  document.getElementById('cmMemo').value = _draft.memo;
+  _syncAllChips();
+  document.getElementById('cellModal').classList.add('open');
+}
+
+function _closeCellModal(){ document.getElementById('cellModal').classList.remove('open'); }
+
+function _saveCellModal(){
+  _draft.memo = (document.getElementById('cmMemo').value||'').trim();
+  window.DocScheduleStore.set(_editPid, viewY, viewM, _editD, _draft);
+  var err = window.DocActiveRepo.saveSchedule();
+  if(err){ alert('저장 실패: '+err.message); return; }
+  _closeCellModal();
+  renderTable();
+}
+
+function _clearCell(){
+  window.DocScheduleStore.del(_editPid, viewY, viewM, _editD);
+  var err = window.DocActiveRepo.saveSchedule();
+  if(err){ alert('저장 실패: '+err.message); return; }
+  _closeCellModal();
+  renderTable();
+}
+
+// 모달 칩/버튼 바인딩 (1회)
+function _bindCellModal(){
+  // 단일선택 칩 그룹
+  [['cmErCall','erCall',function(v){return v;}],
+   ['cmEndo','endo',function(v){return v==='1';}],
+   ['cmConsult','consult',function(v){return v==='1';}],
+   ['cmBlock','block',function(v){return v==='1';}],
+   ['cmStatus','status',function(v){return v;}]
+  ].forEach(function(spec){
+    var box = document.getElementById(spec[0]);
+    if(!box) return;
+    Array.prototype.forEach.call(box.querySelectorAll('.chip'), function(c){
+      c.addEventListener('click', function(){
+        _draft[spec[1]] = spec[2](c.getAttribute('data-v'));
+        _syncChips(spec[0], c.getAttribute('data-v'));
+      });
+    });
+  });
+  document.getElementById('cmClose').addEventListener('click', _closeCellModal);
+  document.getElementById('cmSave').addEventListener('click', _saveCellModal);
+  document.getElementById('cmClear').addEventListener('click', _clearCell);
+  document.getElementById('cellModal').addEventListener('click', function(e){ if(e.target===this) _closeCellModal(); });
+}
+
+// ── 응급실 당직표 (공유 원천) ─────────────────────────────────
+// 전체 의사 풀: 모든 doctor_N 부서 소속을 합친 명단 (여러 진료과가 공유하므로)
+function _allDoctors(){
+  if(!window.PersonsStore) return [];
+  var out = [], seen = {};
+  (PersonsStore.list() || []).forEach(function(p){
+    var m = p.membership || '';
+    if(/^doctor_\d+$/.test(m) && !seen[p.personId]){
+      seen[p.personId] = true;
+      // 소속 부서명도 곁들여 동명이인 구분
+      var deptNm = (window.DeptRegistry && DeptRegistry.get(m)) ? DeptRegistry.get(m).name : m;
+      out.push({ personId:p.personId, name:p.name||p.personId, dept:deptNm });
+    }
+  });
+  out.sort(function(a,b){ return (a.name||'').localeCompare(b.name||'','ko'); });
+  return out;
+}
+
+function openErRoster(){
+  var docs = _allDoctors();
+  document.getElementById('erSub').textContent = viewY + '년 ' + MONTH_KO[viewM];
+  var ndays = _daysInMonth(viewY, viewM);
+  var optsBase = '<option value="">— 미지정 —</option>'
+    + docs.map(function(dc){
+        return '<option value="'+escapeHtml(dc.personId)+'">'+escapeHtml(dc.name)+' ('+escapeHtml(dc.dept)+')</option>';
+      }).join('');
+  var html = '';
+  for(var d=1; d<=ndays; d++){
+    var dow = new Date(viewY, viewM, d).getDay();
+    var isHol = window.CalendarStore ? CalendarStore.isHoliday(viewY, viewM+1, d) : false;
+    var cur = window.ErRosterStore ? ErRosterStore.get(viewY, viewM+1, d) : '';
+    var cls = 'erday' + (dow===0||isHol?' sun':'') + (dow===6?' sat':'');
+    // 현재값 선택 반영
+    var opts = optsBase.replace('value="'+cur+'"', 'value="'+cur+'" selected');
+    html += '<div class="errow">'
+      + '<span class="'+cls+'">'+d+'일<span class="erdow">'+DOW_KO[dow]+'</span></span>'
+      + '<select data-d="'+d+'">'+opts+'</select>'
+      + '</div>';
+  }
+  if(!docs.length){
+    html = '<p style="padding:18px;color:var(--text2);text-align:center;">'
+      + '등록된 의사가 없습니다. 직원관리에서 의사를 의사과로 배치하세요.</p>' + html;
+  }
+  document.getElementById('erList').innerHTML = html;
+  // select 변경 → 즉시 저장 (원천이므로 실시간 반영)
+  Array.prototype.forEach.call(document.getElementById('erList').querySelectorAll('select'), function(sel){
+    sel.addEventListener('change', function(){
+      var d = parseInt(sel.getAttribute('data-d'),10);
+      ErRosterStore.set(viewY, viewM+1, d, sel.value || '');
+    });
+  });
+  document.getElementById('erModal').classList.add('open');
+}
+function _closeErRoster(){
+  document.getElementById('erModal').classList.remove('open');
+  renderTable();   // 헤더 (성) 표시 갱신
+}
+function _bindErModal(){
+  document.getElementById('btnErRoster').addEventListener('click', openErRoster);
+  document.getElementById('erClose').addEventListener('click', _closeErRoster);
+  document.getElementById('erDone').addEventListener('click', _closeErRoster);
+  document.getElementById('erModal').addEventListener('click', function(e){ if(e.target===this) _closeErRoster(); });
+}
+
+// ── 월 이동 ──────────────────────────────────────────────────
+function _updateMonthLabel(){
+  document.getElementById('monthLabel').textContent = viewY + '년 ' + MONTH_KO[viewM];
+}
+function gotoMonth(delta){
+  viewM += delta;
+  if(viewM < 0){ viewM = 11; viewY--; }
+  else if(viewM > 11){ viewM = 0; viewY++; }
+  _updateMonthLabel();
+  renderTable();
+}
+
+// ── 인쇄 (외래 _fitPrintScale 패턴 재사용) ────────────────────
+function _fitPrintScale(){
+  try{
+    var tbl = document.getElementById('docTable');
+    var title = document.getElementById('printTitle');
+    if(!tbl){ document.documentElement.style.setProperty('--print-scale','1'); return; }
+    var MM = 3.7795;
+    var availW = (297 - 12) * MM;   // ≈1077px
+    var availH = (210 - 12) * MM;   // ≈748px
+    var contentW = tbl.scrollWidth;
+    var contentH = tbl.scrollHeight + (title ? title.offsetHeight + 8 : 0);
+    if(contentW<=0 || contentH<=0){ document.documentElement.style.setProperty('--print-scale','1'); return; }
+    var scale = Math.min(availW/contentW, availH/contentH, 1);
+    scale = Math.max(scale, 0.3);
+    document.documentElement.style.setProperty('--print-scale', scale.toFixed(3));
+  }catch(e){ document.documentElement.style.setProperty('--print-scale','1'); }
+}
+function printSchedule(){
+  var t = document.getElementById('printTitle');
+  if(t) t.textContent = DOC_DEPT_NAME + ' — ' + viewY + '년 ' + MONTH_KO[viewM] + ' 의사 스케줄';
+  _fitPrintScale();
+  window.print();
+}
+
+// ── 부팅 ─────────────────────────────────────────────────────
+function boot(){
+  if(!_guardDept()) return;
+  document.getElementById('deptName').textContent = DOC_DEPT_NAME || '의사과';
+  document.title = (DOC_DEPT_NAME||'의사과') + ' 스케줄';
+  if(window.CalendarStore && CalendarStore.load) CalendarStore.load();
+  if(window.docLoadFromStore) docLoadFromStore();
+  _updateMonthLabel();
+  renderTable();
+  _bindCellModal();
+  _bindErModal();
+  document.getElementById('prevM').addEventListener('click', function(){ gotoMonth(-1); });
+  document.getElementById('nextM').addEventListener('click', function(){ gotoMonth(1); });
+  document.getElementById('btnPrint').addEventListener('click', printSchedule);
+}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot);
+else boot();
+</script>
+<script src="../shared/uguide.js"></script>
+<script src="../shared/version.js"></script>
+</body>
+</html>

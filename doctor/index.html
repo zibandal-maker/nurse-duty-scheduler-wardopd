@@ -3,603 +3,1611 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#1E6DBF">
-<title>의사과 스케줄</title>
+<title>비교대 근무표 (M2 개발 중)</title>
 <link rel="stylesheet" href="../shared/theme.css">
+<link rel="stylesheet" href="../shared/calendar-grid.css">
 <link rel="stylesheet" href="../shared/uguide.css">
-<style>
-  /* ── 의사 스케줄 골격 (M6 2단계). 색·표기는 doc-render.js, 저장은 doc-schedule-store.js ── */
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg2);color:var(--text);
-       font-family:var(--sans);font-size:14px;line-height:1.5;-webkit-text-size-adjust:100%}
-  a{color:inherit}
-
-  .topbar{position:sticky;top:0;z-index:30;background:var(--primary-d);color:#fff;
-          display:flex;align-items:center;gap:12px;padding:10px 16px;box-shadow:0 2px 8px rgba(12,68,124,.18)}
-  .topbar .back{color:#cfe2f7;text-decoration:none;font-size:14px;white-space:nowrap}
-  .topbar h1{font-size:17px;margin:0;font-weight:700;letter-spacing:-.01em}
-  .topbar .deptname{color:#fff}
-  .topbar .spacer{flex:1}
-  .topbar button{border:0;background:rgba(255,255,255,.16);color:#fff;border-radius:8px;
-                 padding:7px 12px;font-size:13px;cursor:pointer;font-family:inherit}
-  .topbar button:hover{background:rgba(255,255,255,.28)}
-
-  .toolbar{display:flex;align-items:center;gap:10px;padding:12px 16px;flex-wrap:wrap;
-           background:var(--bg);border-bottom:1px solid var(--line)}
-  .monthnav{display:flex;align-items:center;gap:6px}
-  .monthnav button{border:1px solid var(--line2);background:var(--bg);border-radius:8px;
-                   width:32px;height:32px;cursor:pointer;font-size:16px;color:var(--primary-d)}
-  .monthnav .label{font-size:16px;font-weight:700;color:var(--primary-d);min-width:130px;text-align:center}
-  .legend{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--text2)}
-  .legend .chip{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:999px;border:1px solid var(--line2)}
-  .legend .sw{width:11px;height:11px;border-radius:3px;display:inline-block}
-
-  .wrap{padding:16px;overflow:auto}
-  .card{background:var(--bg);border:1px solid var(--line);border-radius:var(--r-lg);
-        padding:12px;box-shadow:0 1px 3px rgba(20,50,90,.05)}
-
-  /* ── 매트릭스: 의사(행) × 날짜(열) ── */
-  table.docTable{border-collapse:collapse;width:max-content;min-width:100%;font-size:12px;
-                 transform-origin:top left}
-  .docTable th,.docTable td{border:1px solid var(--line);text-align:center;vertical-align:middle}
-  .docTable thead th{background:var(--bg3);position:sticky;top:0;z-index:5;
-                     padding:3px 4px;font-weight:600;color:var(--text2);min-width:42px}
-  .docTable thead th.dcol .dnum{font-size:13px;font-weight:700;color:var(--text)}
-  .docTable thead th.dcol .dow{font-size:10px;color:var(--text3)}
-  .docTable thead th.dcol .hol{font-size:9px;color:var(--warn);display:block;line-height:1.1}
-  .docTable thead th.dcol .er{font-size:10px;color:var(--primary-d);display:block;line-height:1.1;font-weight:700}
-  .docTable thead th.dcol.sun .dnum,.docTable thead th.dcol.sun .dow{color:var(--warn)}
-  .docTable thead th.dcol.sat .dnum,.docTable thead th.dcol.sat .dow{color:var(--primary)}
-  .docTable thead th.dcol.holiday{background:#FBE9E7}
-  .docTable th.namecol{position:sticky;left:0;z-index:8;background:var(--bg3);
-                       min-width:96px;text-align:left;padding:4px 8px;font-weight:700;color:var(--text)}
-  .docTable td.namecell{position:sticky;left:0;z-index:6;background:var(--bg);
-                        text-align:left;padding:4px 8px;font-weight:600;white-space:nowrap}
-  .docTable td.namecell .spec{display:block;font-size:10px;font-weight:500;color:var(--text3);margin-top:1px}
-  .docTable thead th.namecol{z-index:9}
-
-  .docTable td.cell{min-width:42px;width:42px;height:44px;cursor:pointer;position:relative;padding:0}
-  .docTable td.cell:hover{outline:2px solid var(--primary);outline-offset:-2px;z-index:4}
-  /* 셀 내부 3층: 상단 메모 / 중앙 D·N 글자 / 하단 배지 — 겹침 방지 */
-  .cell .cinner{position:absolute;inset:0;display:flex;flex-direction:column;
-                align-items:center;justify-content:center;gap:1px;padding:2px 3px 1px}
-  .cell .leftbar{position:absolute;left:0;top:0;bottom:0;width:4px;z-index:1}
-  .cell .ctext{font-size:14px;font-weight:800;line-height:1}
-  .cell .cmemo{font-size:8px;color:var(--text3);max-width:100%;
-               overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .cell .cbadges{display:flex;gap:2px;justify-content:center;flex-wrap:wrap;line-height:1}
-  .cell .cb{font-size:9px;font-weight:700;line-height:1.3;min-width:13px;text-align:center;
-            padding:0 2px;border-radius:3px;border:1px solid}
-  .cell.dim{opacity:.5}
-  .cell.empty:hover{background:var(--primary-bg) !important}
-
-  .empty-note{padding:40px 16px;text-align:center;color:var(--text2)}
-  .empty-note a{color:var(--primary);font-weight:600}
-
-  /* ── 셀 편집 모달 (외래 패턴 통일) ── */
-  .modal-bg{position:fixed;inset:0;background:rgba(20,20,18,.45);display:none;
-       align-items:flex-start;justify-content:center;z-index:100;padding:24px 12px;overflow-y:auto}
-  .modal-bg.open{display:flex}
-  .modal{background:var(--bg);border-radius:var(--r-lg);max-width:460px;width:100%;
-       box-shadow:0 24px 60px rgba(0,0,0,.3);overflow:hidden}
-  .modal-head{display:flex;align-items:center;gap:10px;padding:14px 18px;
-       border-bottom:1px solid var(--line);background:var(--bg3)}
-  .modal-head h3{margin:0;font-size:17px;color:var(--primary-d)}
-  .modal-head .mh-sub{font-size:13px;color:var(--text2);font-weight:500}
-  .modal-head .mh-holi{font-size:13px;color:var(--warn-d);font-weight:600}
-  .modal-head .x{margin-left:auto;border:0;background:transparent;font-size:24px;cursor:pointer;
-       color:var(--text2);line-height:1;padding:2px 6px}
-  .modal-body{padding:6px 0}
-  .erow{display:grid;grid-template-columns:64px 1fr;gap:8px;padding:11px 18px;
-       border-bottom:1px solid var(--line);align-items:center}
-  .erow:last-child{border-bottom:none}
-  .erow .elbl{font-weight:700;font-size:14px;color:var(--text2)}
-  .chips{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-  .chip{border:1px solid var(--line2);background:var(--bg);border-radius:999px;
-       padding:4px 12px;font-size:13px;font-weight:600;cursor:pointer;color:var(--text2);
-       font-family:inherit;line-height:1.4}
-  .chip.on{border-color:transparent;color:#fff}
-  .chip-memo{flex:1;min-width:120px;border:1px solid var(--line2);border-radius:var(--r);
-       padding:6px 10px;font-size:13px;font-family:inherit;box-sizing:border-box}
-  .modal-foot{padding:12px 18px;border-top:1px solid var(--line);display:flex;
-       align-items:center;gap:10px;background:var(--bg2)}
-  .modal-foot .clearbtn{border:1px solid var(--line2);background:var(--bg);color:var(--warn);
-       font-weight:600;border-radius:var(--r);padding:7px 14px;cursor:pointer;font-family:inherit}
-  .modal-foot .savebtn{margin-left:auto;border:0;background:var(--primary);color:#fff;
-       font-weight:700;border-radius:var(--r);padding:7px 18px;cursor:pointer;font-family:inherit}
-  /* 응급실 당직표 행 */
-  .errow{display:grid;grid-template-columns:96px 1fr;gap:10px;padding:7px 18px;align-items:center}
-  .errow:nth-child(odd){background:var(--bg2)}
-  .errow .erday{font-size:13px;font-weight:600;color:var(--text)}
-  .errow .erday .erdow{font-size:11px;color:var(--text3);margin-left:4px}
-  .errow .erday.sun,.errow .erday.sun .erdow{color:var(--warn)}
-  .errow .erday.sat,.errow .erday.sat .erdow{color:var(--primary)}
-  .errow select{width:100%;padding:6px 8px;border:1px solid var(--line2);border-radius:var(--r);
-       font-size:13px;font-family:inherit;background:var(--bg);box-sizing:border-box}
-
-  /* ── 인쇄 (외래 _fitPrintScale 패턴 재사용) ── */
-  #printTitle{display:none}
-  @media print{
-    @page{size:A4 landscape;margin:6mm}
-    .topbar,.toolbar,#uguide,.legend,#app-version-badge,.modal-bg{display:none !important}
-    .wrap{padding:0;overflow:visible}
-    .card{border:0;box-shadow:none;padding:0}
-    #printTitle{display:block;text-align:center;font-size:14px;font-weight:700;margin-bottom:6px;color:#000}
-    table.docTable{transform:scale(var(--print-scale,1));transform-origin:top left}
-    .docTable td.cell:hover{outline:none}
-    .docTable thead th,.docTable td.namecell,.docTable th.namecol{position:static}
-  }
-</style>
 </head>
 <body>
-  <div class="topbar">
-    <a class="back" href="../index.html">← 부서</a>
-    <h1>🩺 <span class="deptname" id="deptName">의사과</span> 스케줄</h1>
-    <span class="spacer"></span>
-    <button id="btnErRoster" type="button">🚑 응급실 당직표</button>
-    <button id="btnPrint" type="button">🖨 인쇄</button>
+<div class="wrap">
+
+  <header>
+    <span class="ico">🔄</span>
+    <h1 id="pageTitle">비교대 근무표</h1>
+  </header>
+  <p class="sub" id="pageSub">외래·검사실 등 비교대 부서용 근무표. 인력은 직원관리에서 이 부서로 배치합니다.</p>
+
+  <!-- ③ 상단 툴바 — 스크롤해도 고정 -->
+  <div class="card nav stickybar" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;">
+    <a href="../index.html">← 부서 선택으로</a>
+    <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;">
+      <button class="toolbtn b-report" id="btnStats" title="근무 통계">📊 통계</button>
+      <button class="toolbtn b-auto" id="btnAuto" title="자동배치 — 요일고정 반영 + 평일 근무·토요일 오전">✨ 자동배치</button>
+      <button class="toolbtn b-reset" id="btnReset" title="이 부서 근무표 초기화">↺ 초기화</button>
+      <button class="toolbtn b-rules" id="btnSettings" title="슬롯 방식·기본 뷰 설정">⚙ 설정</button>
+      <button class="toolbtn b-print" id="btnPrint" title="현재 달 인쇄">🖨 인쇄</button>
+      <button class="toolbtn b-save" id="btnExport" title="JSON 백업 파일로 저장">↑ 백업</button>
+      <button class="toolbtn b-event" id="btnImport" title="JSON 백업 불러오기">↓ 복원</button>
+      <input type="file" id="importFile" accept=".json" style="display:none">
+    </span>
   </div>
 
-  <div class="toolbar">
-    <div class="monthnav">
-      <button id="prevM" type="button" title="이전 달">‹</button>
-      <span class="label" id="monthLabel">—</span>
-      <button id="nextM" type="button" title="다음 달">›</button>
+  <div class="layout">
+  <div class="main-col">
+  <!-- M2c: 월 캘린더 그리드 골격 (셀 내용은 M2d에서) -->
+  <div class="card">
+    <div id="printTitle"></div>
+    <div class="cal-top-sticky" id="calTopSticky">
+    <div class="cal-head">
+      <button id="prevM" title="이전 달">‹</button>
+      <span class="mlabel" id="mLabel">—</span>
+      <button id="nextM" title="다음 달">›</button>
+      <button class="today-btn" id="todayB" title="오늘이 있는 달로">오늘</button>
+      <span class="viewtabs" id="viewTabs">
+        <button data-view="doctor" class="vtab on">달력형</button><button data-view="slot" class="vtab">슬롯형</button>
+      </span>
+      <span class="spacer" id="calHint"></span>
+      <span style="display:inline-flex;align-items:center;gap:4px;margin-left:8px;">
+        <button class="toolbtn" id="calCopyPrev" title="지난달 근무를 요일 기준으로 이번 달에 복사" style="padding:2px 8px">⧉ 지난달 복사</button>
+        <button class="toolbtn" id="calNarrow" title="좁게" style="padding:2px 8px">−</button>
+        <button class="toolbtn" id="calWide" title="넓게" style="padding:2px 8px">＋</button>
+      </span>
     </div>
-    <div class="legend">
-      <span class="chip"><span class="sw" style="background:#FCF3C4;border:1px solid #E6D27A"></span>협진당직</span>
-      <span class="chip"><span class="sw" style="background:#DCEBFB;border:1px solid #A9CBF0"></span>내시경</span>
-      <span class="chip"><span class="sw" style="background:#F7E5CC;border:1px solid #E0BE8A"></span>휴진</span>
-      <span class="chip"><span class="sw" style="background:#C0392B"></span>(X) 콜·협진 금지</span>
-      <span class="chip">D 주간콜 · N 야간콜</span>
+    <div class="palette-box" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 10px;background:var(--bg2);border:1px solid var(--bd);border-radius:9px;">
+      <span style="font-size:13px;color:var(--text2);margin-right:2px;font-weight:600;">붓:</span>
+    </div>
+    </div>
+    <table class="cal" id="calTable">
+      <colgroup>
+        <col class="col-sun"><col><col><col><col><col><col class="col-sat">
+      </colgroup>
+      <thead>
+        <tr>
+          <th class="sun">일</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th class="sat">토</th>
+        </tr>
+      </thead>
+      <tbody id="calBody"></tbody>
+    </table>
+  </div>
+
+  <!-- A-2: 명단형 (사람×날짜) — 슬롯 칠하기 입력. 팔레트로 붓 선택 후 칸 클릭. -->
+  <details class="card" id="sheetWrap2" open style="padding:16px 18px;">
+    <summary style="cursor:pointer;font-size:16px;font-weight:600;color:var(--text2);
+         text-transform:uppercase;letter-spacing:.04em;list-style:none;">
+      📋 명단형 (사람 × 날짜) <span id="sheetMonth" style="text-transform:none;color:var(--primary);font-weight:700;"></span>
+    </summary>
+    <div style="margin-top:12px;">
+      <div id="palette" class="palette-box" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;align-items:center;">
+        <span style="font-size:13px;color:var(--text2);margin-right:2px;">붓:</span>
+      </div>
+      <div style="font-size:13px;color:var(--text3);margin-bottom:8px;">
+        붓을 고르고 칸(오전/오후)을 클릭하면 칠해집니다. 단축키 1~6·0, 지우기 Backspace, 붓 해제 Esc.
+      </div>
+      <div class="sheet-wrap">
+        <table class="sheet" id="sheetTable"></table>
+      </div>
+      <div class="sheet-legend">
+        <span><i style="background:rgba(24,95,165,.12)"></i>토요일(근무)</span>
+        <span><i style="background:#fae8e8"></i>일요일</span>
+        <span><i style="background:var(--warn-bg)"></i>공휴일</span>
+        <span>칸: 위=오전 / 아래=오후</span>
+      </div>
+    </div>
+  </details>
+
+  </div><!-- /main-col -->
+  <div class="side-col">
+  <!-- B-2: 이 부서 소속 인원 + 간호사 추가 (듀티 디자인 통일) -->
+  <div class="card" id="rosterCard">
+    <div class="phdr"><span>👥 간호사 관리 <span id="rosterCount" style="font-weight:600;color:var(--text3);font-size:14px"></span></span></div>
+    <div class="ncards" id="rosterList">
+      <div class="empty" style="font-size:14px;color:var(--text3);padding:8px">불러오는 중…</div>
+    </div>
+    <details id="addDetails" class="addsec-cal">
+      <summary>＋ 간호사 추가</summary>
+      <div style="padding:0 12px 12px;">
+        <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:4px;">직원관리에 등록된 인원 중 선택</label>
+        <select id="aPersonSel" style="width:100%;padding:6px;border:1px solid var(--bd2);border-radius:6px;font-size:14px;margin-bottom:6px;"><option value="">— 배치할 사람 선택 —</option></select>
+        <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:4px;">직급</label>
+        <select id="aRoleSel" style="width:100%;padding:6px;border:1px solid var(--bd2);border-radius:6px;font-size:14px;margin-bottom:8px;"></select>
+        <div style="font-size:12px;color:var(--text3);line-height:1.5;margin-bottom:8px;">새 사람 등록은 <b>직원관리</b>에서. 여기서는 이미 등록된 인원을 이 부서로 배치만 합니다.</div>
+        <button id="aAddBtn" style="width:100%;padding:8px;background:var(--primary);color:#fff;border:0;border-radius:6px;font-size:15px;font-weight:600;cursor:pointer;">이 부서에 배치</button>
+      </div>
+    </details>
+  </div>
+
+  </div><!-- /side-col -->
+  </div><!-- /layout -->
+
+  <div id="navToolbarSlot"></div>
+
+  <!-- M3e-2: 설정 모달 -->
+  <!-- ⑮ 통계 모달 -->
+  <div class="modal-bg" id="statsModal">
+    <div class="modal" role="dialog" aria-modal="true" style="max-width:560px;">
+      <div style="display:flex;align-items:center;margin-bottom:6px;">
+        <h3 style="margin:0;font-size:19px;color:var(--primary-d);">📊 근무 통계 <span id="statsMonth" style="font-size:15px;color:var(--text2);font-weight:600;"></span></h3>
+        <button id="statsClose" style="margin-left:auto;border:0;background:none;font-size:22px;cursor:pointer;color:var(--text2);">✕</button>
+      </div>
+      <div class="modal-body" id="statsBody" style="padding:8px 4px;"></div>
     </div>
   </div>
 
-  <div class="wrap">
-    <div class="card main-col">
-      <div id="printTitle"></div>
-      <div id="tableHost"><div class="empty-note">로딩 중…</div></div>
-    </div>
-  </div>
-
-  <!-- 셀 편집 모달 -->
-  <div class="modal-bg" id="cellModal">
-    <div class="modal" role="dialog" aria-modal="true">
+  <div class="modal-bg" id="setModal">
+    <div class="modal" role="dialog" aria-modal="true" style="max-width:520px;">
       <div class="modal-head">
-        <h3 id="cmTitle">셀 편집</h3>
-        <span class="mh-sub" id="cmSub"></span>
-        <span class="mh-holi" id="cmHoli"></span>
-        <button class="x" id="cmClose" type="button" aria-label="닫기">×</button>
+        <h3>비교대 설정</h3>
+        <button class="x" id="setClose" title="닫기">×</button>
       </div>
       <div class="modal-body">
-        <div class="erow">
-          <span class="elbl">응급콜</span>
-          <div class="chips" id="cmErCall">
-            <button type="button" class="chip" data-v="">없음</button>
-            <button type="button" class="chip" data-v="D">D 주간콜</button>
-            <button type="button" class="chip" data-v="N">N 야간콜</button>
+        <div class="setrow">
+          <div class="sk">슬롯형 나누는 방식</div>
+          <div class="sd">슬롯 뷰에서 칸을 어떻게 묶을지. 오전/오후 2슬롯 또는 근무형별.</div>
+          <div class="opts" id="optSlotMode">
+            <button class="opt" data-k="slotMode" data-v="byHalf">오전/오후 2슬롯</button>
+            <button class="opt" data-k="slotMode" data-v="byCode">근무형별 슬롯</button>
           </div>
         </div>
-        <div class="erow">
-          <span class="elbl">시술</span>
-          <div class="chips" id="cmEndo">
-            <button type="button" class="chip" data-v="0">없음</button>
-            <button type="button" class="chip" data-v="1">내시경</button>
-          </div>
-        </div>
-        <div class="erow">
-          <span class="elbl">협진</span>
-          <div class="chips" id="cmConsult">
-            <button type="button" class="chip" data-v="0">없음</button>
-            <button type="button" class="chip" data-v="1">협진당직</button>
-          </div>
-        </div>
-        <div class="erow">
-          <span class="elbl">금지</span>
-          <div class="chips" id="cmBlock">
-            <button type="button" class="chip" data-v="0">해제</button>
-            <button type="button" class="chip" data-v="1">(X) 콜·협진 금지</button>
-          </div>
-        </div>
-        <div class="erow">
-          <span class="elbl">상태</span>
-          <div class="chips" id="cmStatus">
-            <button type="button" class="chip" data-v="근무">근무</button>
-            <button type="button" class="chip" data-v="휴진">휴진</button>
-          </div>
-        </div>
-        <div class="erow">
-          <span class="elbl">메모</span>
-          <div class="chips">
-            <input class="chip-memo" id="cmMemo" type="text" maxlength="20" placeholder="투석·외래 등 자유 입력">
+        <div class="setrow">
+          <div class="sk">앱 열 때 기본 뷰</div>
+          <div class="sd">비교대 앱을 처음 열 때 어떤 보기로 시작할지.</div>
+          <div class="opts" id="optDefaultView">
+            <button class="opt" data-k="defaultView" data-v="doctor">의사표형</button>
+            <button class="opt" data-k="defaultView" data-v="slot">슬롯형</button>
           </div>
         </div>
       </div>
       <div class="modal-foot">
-        <button class="clearbtn" id="cmClear" type="button">전체 비우기</button>
-        <button class="savebtn" id="cmSave" type="button">저장</button>
+        <span class="saved" id="setSaved"></span>
+        <button id="setDone">완료</button>
       </div>
     </div>
   </div>
 
-  <!-- 응급실 당직표 관리 모달 (원천 — 모든 의사과가 읽어감) -->
-  <div class="modal-bg" id="erModal">
-    <div class="modal" style="max-width:520px;">
+  <!-- M3d-2: 날짜 편집 모달 -->
+  <div class="modal-bg" id="editModal">
+    <div class="modal" role="dialog" aria-modal="true">
       <div class="modal-head">
-        <h3>🚑 응급실 당직표</h3>
-        <span class="mh-sub" id="erSub"></span>
-        <button class="x" id="erClose" type="button" aria-label="닫기">×</button>
+        <h3 id="emTitle">날짜</h3>
+        <span class="mh-holi" id="emHoli"></span>
+        <button class="x" id="emClose" title="닫기">×</button>
       </div>
-      <div class="modal-body" id="erBody" style="max-height:62vh;overflow-y:auto;">
-        <p style="padding:8px 18px;margin:0;font-size:12px;color:var(--text2);line-height:1.5;">
-          모든 의사과가 공유하는 당직표입니다. 여기서 정한 당직의의 성씨가 각 의사과 스케줄 날짜 위에 (성)으로 표시됩니다.</p>
-        <div id="erList"></div>
-      </div>
+      <div class="modal-body" id="emBody"></div>
       <div class="modal-foot">
-        <button class="savebtn" id="erDone" type="button">닫기</button>
+        <span class="saved" id="emSaved"></span>
+        <button id="emDone">완료</button>
       </div>
     </div>
   </div>
 
+</div>
+
+<!--
+  ────────────────────────────────────────────────────────────────
+  [모듈 배선 — M2a]
+  비교대 앱은 shared 모듈 중 "진짜 공통"인 것만 가져온다:
+    • utils.js          — 날짜·셀키 등 순수 계산 (부서 무관)
+    • calendar-store.js — 공휴일 (국가 공통)
+    • persons-store.js  — 공유 사람 풀 (부서 무관 인사 정보)
+
+  ★ ward-context.js 는 가져오지 않는다.
+    이유: 그 파일은 WARD_ID='duty' 를 하드코딩하고, 로드 즉시 '듀티 마이그레이션'을
+    실행하는 *듀티 전용* 부품이다. 비교대가 끌어 쓰면 자기를 듀티로 착각하거나
+    듀티 데이터 이전 로직을 잘못 건드릴 수 있다.
+    → 비교대는 자기 WARD_ID('outpatient')를 아래에서 직접 선언하고,
+      키 규칙(base_wardId)만 동일 규약으로 자체 보유한다. (작은 중복 < 잘못된 결합)
+  ────────────────────────────────────────────────────────────────
+-->
 <script src="../shared/utils.js"></script>
 <script src="../shared/calendar-store.js"></script>
 <script src="../shared/persons-store.js"></script>
 <script src="../shared/dept-registry.js"></script>
-<script src="../shared/er-roster-store.js"></script>
-<script src="./doc-schedule-store.js"></script>
-<script src="./doc-render.js"></script>
+<script src="../shared/outpatient-adapter.js"></script>
+<script src="./cal-shifts.js"></script>
+<script src="./cal-viewpref.js"></script>
+<script src="./cal-schedule-store.js"></script>
+<script src="./cal-leave.js"></script>
+
 <script>
-/* ============================================================
-   doctor/index.html — 의사과 스케줄 화면 본체 (M6 2단계: 골격)
-   ------------------------------------------------------------
-   외래 calendar/index.html 구조를 본떴지만, 셀은 6속성(doc-schedule-store).
-   한 파일 다부서: URL ?dept=doctor_N 으로 부서별 데이터를 그림(파일 안 늘어남).
-   저장 키 접두 DOC_DEPT_ID = doctor_N → 'doc_sched_doctor_N'.
-
-   이번 단계(골격)에서 동작:
-     · 부서 가드, 헤더(요일·공휴일·응급실당직 자리), 매트릭스 렌더, 월 이동, 인쇄.
-     · 셀 클릭 → 편집 팝업은 4단계. 지금은 placeholder(안내).
-     · 응급실 당직 성씨는 5단계. 지금은 헤더에 자리만(빈 값).
-   ============================================================ */
-
-var MONTH_KO = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
-var DOW_KO   = ['일','월','화','수','목','금','토'];
-
-// ── 부서 해석 (외래와 동일 패턴) ──────────────────────────────
+/* ── 비교대 부서 컨텍스트 (자체 선언, ward-context 미사용) ──
+   WARD_ID 는 저장 키 접두사로 쓰인다: cal_*_<deptId>
+   키 규칙은 듀티와 동일 규약(base + '_' + wardId)을 유지해 향후 통합이 쉽게.
+   ── M5b: 다중 외래 부서 ──
+   WARD_ID 를 URL ?dept=<id> 에서 받아 부서별 근무표를 그린다(한 파일 다부서).
+   레지스트리(DeptRegistry)에 없는 dept 면 안내 화면. dept 없으면 대시보드로 유도.   */
 function _getDeptFromURL(){
-  try{ return new URLSearchParams(location.search).get('dept') || ''; }catch(_){ return ''; }
+  try {
+    var p = new URLSearchParams(location.search);
+    return p.get('dept') || '';
+  } catch(_){ return ''; }
 }
-var DOC_DEPT_ID = _getDeptFromURL();   // 예: 'doctor_1'
-window.DOC_DEPT_ID = DOC_DEPT_ID;      // store가 접두로 사용
-var DOC_DEPT_NAME = '';
-(function _resolve(){
-  if(!DOC_DEPT_ID) return;
-  var rec = (window.DeptRegistry && DeptRegistry.get) ? DeptRegistry.get(DOC_DEPT_ID) : null;
-  if(rec) DOC_DEPT_NAME = rec.name;
+var WARD_ID = _getDeptFromURL();   // 예: 'outpatient_1' (URL ?dept=outpatient_1)
+var WARD_NAME = '';                 // 표시용 부서명 (레지스트리에서)
+(function _resolveWard(){
+  if(!WARD_ID) return;  // 무효 진입은 부팅 후 _guardDept()에서 안내
+  var rec = (window.DeptRegistry && DeptRegistry.get) ? DeptRegistry.get(WARD_ID) : null;
+  if(rec) WARD_NAME = rec.name;
+})();
+function calKey(base){ return base + '_' + WARD_ID; }   // 예: calKey('cal_sched') → 'cal_sched_outpatient_1'
+
+/* ── M2a 자가진단: 배선이 됐는지만 확인 (데이터 변경 없음) ── */
+
+/* ── M2b: 공유 풀 → 인력 명단 렌더 (읽기 전용) ──
+   PersonsStore.list() = [{personId, name, birthday}]
+   정렬: 이름 가나다순(한국어 로캘). 빈 풀이면 안내 문구.                         */
+function initials(name){
+  if(!name) return '?';
+  // 한글이면 첫 글자, 영문이면 첫 글자 대문자
+  return name.trim().charAt(0).toUpperCase();
+}
+function fmtBirthday(b){
+  if(!b) return '';
+  // 'YYYY-MM-DD' → 'MM/DD' 정도로 가볍게 (없으면 빈칸)
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(b);
+  return m ? (m[2]+'/'+m[3]) : b;
+}
+function renderRoster(){
+  var listEl  = document.getElementById('rosterList');
+  var countEl = document.getElementById('rosterCount');
+  var people = (window.OutpatientAdapter)
+               ? OutpatientAdapter.listMembers(WARD_ID)
+               : (window.PersonsStore ? PersonsStore.listByDept(WARD_ID) : []);
+  if(countEl) countEl.textContent = '('+people.length+'명)';
+  if(people.length === 0){
+    listEl.innerHTML = '<div class="empty" style="font-size:14px;color:var(--text3);padding:10px;line-height:1.5">'
+      + '아직 이 부서 소속 간호사가 없습니다.<br>아래 “＋ 간호사 추가”로 직원관리에 등록된 인원을 배치하세요.</div>';
+  } else {
+    listEl.innerHTML = people.map(function(p){
+      var da = (p.deptAttrs && p.deptAttrs[WARD_ID]) ? p.deptAttrs[WARD_ID] : {};
+      var role = da.role || '평간호사';
+      var preg = da.attributes && da.attributes.pregnant;
+      var fw = (da.attributes && da.attributes.fixedWeekday) ? da.attributes.fixedWeekday : {};
+      var hasFixed = Object.keys(fw).length>0;
+      var col = da.color || '#2980B9';
+      var sel = (_editMemberPid === p.personId);
+      // 연차 현황 (D-1)
+      var leaveStr = '';
+      if(window.CalLeave && CalLeave.status){
+        var st = CalLeave.status(p.personId);
+        if(st.total!=null){
+          var rem = st.remaining;
+          var remCol = rem<=0 ? 'var(--warn)' : (rem<=3 ? '#C0781A' : 'var(--text2)');
+          leaveStr = '연차 '+st.usedOutpatient+'/'+st.total+'일<br><span style="color:'+remCol+';font-weight:700">남음 '+rem+'</span>';
+        } else {
+          leaveStr = '연차<br>'+st.usedOutpatient+'일';
+        }
+      }
+      var sel = (_editMemberPid === p.personId);
+      var dragAttrs = sel ? '' :
+        ' draggable="true"'
+        + ' ondragstart="onMemberDragStart(event,\''+p.personId+'\')"'
+        + ' ondragover="onMemberDragOver(event,\''+p.personId+'\')"'
+        + ' ondrop="onMemberDrop(event,\''+p.personId+'\')"'
+        + ' ondragleave="onMemberDragLeave(event)"'
+        + ' ondragend="onMemberDragEnd(event)"';
+      return '<div class="ncard'+(sel?' sel2':'')+'" id="oc-'+p.personId+'"'+dragAttrs+'>'
+        + '<div class="nct">'
+        +   '<span class="drag-handle" title="'+(sel?'편집 중 순서변경 불가':'드래그로 순서 변경')+'" onclick="event.stopPropagation()">⠿</span>'
+        +   '<span class="navatar-ph" style="background:'+col+'22;color:'+col+'" onclick="outToggleEdit(\''+p.personId+'\')">'+escapeHtml(initials(p.name))+'</span>'
+        +   '<span class="ni2" onclick="outToggleEdit(\''+p.personId+'\')">'
+        +     '<span class="ncn">'+escapeHtml(p.name||'(이름없음)')
+        +       '<span class="rbadge">'+escapeHtml(role)+'</span>'
+        +       (preg?'<span title="임산부">🤰</span>':'')
+        +       (hasFixed?'<span title="요일고정">📌</span>':'')
+        +       (_isBirthdayMonth(p.birthday)?'<span title="이달 생일">🎂</span>':'')
+        +     '</span>'
+        +   '</span>'
+        +   (leaveStr?'<span class="ncv">'+leaveStr+'</span>':'')
+        + '</div>'
+        + (sel ? '<div class="nce">'+_memberEditPanel(p)+'</div>' : '')
+        + '</div>';
+    }).join('');
+    _bindMemberEdit();
+  }
+  _renderAddNurseUI();
+}
+
+/* ── A-3/A-4: 소속 인원 부서특성 편집 (직급·임산부·색·요일고정) ── */
+var _editMemberPid = null;
+var WD_KEYS = ['sun','mon','tue','wed','thu','fri','sat'];
+var WD_LABELS = ['일','월','화','수','목','금','토'];
+
+function outToggleEdit(pid){
+  _editMemberPid = (_editMemberPid===pid) ? null : pid;
+  renderRoster();
+}
+// 간호사 순서 조정 — 드래그 앤 드롭 (듀티 패턴). manualOrder 재부여.
+var _cardDragSrc = null;
+function onMemberDragStart(e, pid){
+  _cardDragSrc = pid;
+  e.dataTransfer.effectAllowed = 'move';
+  setTimeout(function(){
+    var el=document.getElementById('oc-'+pid);
+    if(el) el.classList.add('dragging-card');
+  },0);
+}
+function onMemberDragOver(e, pid){
+  e.preventDefault();
+  e.dataTransfer.dropEffect='move';
+  if(_cardDragSrc===pid) return;
+  Array.prototype.forEach.call(document.querySelectorAll('#rosterList .ncard'), function(el){ el.classList.remove('drag-over','drag-over-bottom'); });
+  var el=document.getElementById('oc-'+pid);
+  if(!el) return;
+  // 커서가 카드 상반부면 '위에 삽입', 하반부면 '아래에 삽입' 표시
+  var r=el.getBoundingClientRect();
+  var before = (e.clientY < r.top + r.height/2);
+  el.classList.add(before ? 'drag-over' : 'drag-over-bottom');
+}
+function onMemberDragLeave(e){
+  var el=e.currentTarget;
+  if(el) el.classList.remove('drag-over','drag-over-bottom');
+}
+function onMemberDragEnd(e){
+  Array.prototype.forEach.call(document.querySelectorAll('#rosterList .ncard'), function(el){
+    el.classList.remove('drag-over','drag-over-bottom','dragging-card');
+  });
+  _cardDragSrc=null;
+}
+function onMemberDrop(e, pid){
+  e.preventDefault();
+  e.stopPropagation();
+  var dropEl=document.getElementById('oc-'+pid);
+  // 드롭 위치(위/아래) 판정 — 정리 전에 먼저 계산
+  var before = true;
+  if(dropEl){
+    var r=dropEl.getBoundingClientRect();
+    before = (e.clientY < r.top + r.height/2);
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('#rosterList .ncard'), function(el){
+    el.classList.remove('drag-over','drag-over-bottom','dragging-card');
+  });
+  if(!_cardDragSrc || _cardDragSrc===pid){ _cardDragSrc=null; return; }
+  if(!window.PersonsStore || !window.OutpatientAdapter){ _cardDragSrc=null; return; }
+
+  var srcId=_cardDragSrc; _cardDragSrc=null;
+  var ord = OutpatientAdapter.listMembers(WARD_ID).map(function(p){ return p.personId; });
+  var srcIdx = ord.indexOf(srcId);
+  if(srcIdx<0) return;
+  ord.splice(srcIdx,1);                       // 먼저 src 제거
+  var dstIdx = ord.indexOf(pid);              // 제거 후 대상 위치
+  if(dstIdx<0) dstIdx = 0;
+  var insertAt = before ? dstIdx : dstIdx+1;  // 위면 앞, 아래면 뒤
+  ord.splice(insertAt, 0, srcId);
+  // manualOrder 재부여
+  ord.forEach(function(personId,i){ PersonsStore.setDeptAttrs(personId, WARD_ID, { manualOrder: i }); });
+
+  renderRoster();
+  renderSheet();
+  _calOnly=true; try{ if(typeof renderCalendar==='function') renderCalendar(); }finally{ _calOnly=false; }
+}
+function _memberEditPanel(p){
+  var da = (p.deptAttrs && p.deptAttrs[WARD_ID]) ? p.deptAttrs[WARD_ID] : {};
+  var role = da.role || '평간호사';
+  var attrs = da.attributes || {};
+  var preg = !!attrs.pregnant;
+  var fw = attrs.fixedWeekday || {};
+  var col = da.color || '#2980B9';
+  var ROLES_LIST = window.ROLES || ['수간호사','주임','차지','평간호사','신규간호사'];
+  var palette = window.NCOLS || ['#2980B9'];
+
+  var roleOpts = ROLES_LIST.map(function(r){ return '<option'+(r===role?' selected':'')+'>'+r+'</option>'; }).join('');
+  var colorDots = palette.map(function(c){
+    return '<span onclick="outSetColor(\''+p.personId+'\',\''+c+'\')" '
+      + 'style="display:inline-block;width:18px;height:18px;border-radius:50%;background:'+c+';cursor:pointer;'
+      + 'border:'+(c===col?'2px solid #000':'1px solid #ccc')+';margin:1px"></span>';
+  }).join('');
+  // 요일고정 v2: 요일별 오전/오후 코드 + 적용 주차(1~5)
+  var fwCodes = [['','—'],['work','근무'],['half','반차'],['vac','연차'],['off','OFF']];
+  function fwSel(wk, slot, cur){
+    var opts = fwCodes.map(function(c){ return '<option value="'+c[0]+'"'+(c[0]===cur?' selected':'')+'>'+c[1]+'</option>'; }).join('');
+    return '<select onchange="outSetFWSlot(\''+p.personId+'\',\''+wk+'\',\''+slot+'\',this.value)" '
+      + 'style="font-size:13px;padding:1px;border:1px solid var(--bd2);border-radius:4px;width:52px">'+opts+'</select>';
+  }
+  // 월~토 (일요일은 외래 근무 없음)
+  var fwRows = [1,2,3,4,5,6].map(function(i){
+    var wk = WD_KEYS[i];
+    var rule = _normFW(fw[wk]) || {am:'',pm:'',weeks:[]};
+    var wkBoxes = [1,2,3,4,5].map(function(n){
+      var on = rule.weeks.indexOf(n)>=0;
+      return '<label style="display:inline-flex;align-items:center;gap:1px;cursor:pointer;font-size:11px">'
+        + '<input type="checkbox" '+(on?'checked':'')+' style="margin:0;width:12px;height:12px" '
+        + 'onchange="outSetFWWeek(\''+p.personId+'\',\''+wk+'\','+n+',this.checked)">'+n+'</label>';
+    }).join('');
+    var hasRule = rule.am || rule.pm;
+    return '<tr>'
+      + '<td style="color:'+(i===6?'#1E6DBF':'var(--text2)')+';font-weight:600;padding:2px 4px">'+WD_LABELS[i]+'</td>'
+      + '<td style="padding:2px 2px">'+fwSel(wk,'am',rule.am)+'</td>'
+      + '<td style="padding:2px 2px">'+fwSel(wk,'pm',rule.pm)+'</td>'
+      + '<td style="padding:2px 4px"><span style="display:inline-flex;gap:4px;opacity:'+(hasRule?'1':'.4')+'">'+wkBoxes+'</span></td>'
+      + '</tr>';
+  }).join('');
+  var basis = _weekBasis();
+  var fwTable = '<table style="border-collapse:collapse;font-size:13px;width:100%">'
+    + '<thead><tr style="color:var(--text3);font-size:11px">'
+    + '<th style="text-align:left;padding:1px 4px">요일</th><th style="padding:1px 2px">오전</th><th style="padding:1px 2px">오후</th>'
+    + '<th style="text-align:left;padding:1px 4px">적용 주차</th></tr></thead>'
+    + '<tbody>'+fwRows+'</tbody></table>'
+    + '<div style="font-size:9.5px;color:var(--text3);margin-top:5px;line-height:1.5">'
+    + '주차 미선택 = 매주 반복. 예) “2·4주 토요일 휴무” → 토요일 오전·오후 OFF + 주차 2,4 체크.</div>'
+    + '<label style="font-size:9.5px;color:var(--text2);display:flex;align-items:center;gap:4px;margin-top:5px">주차 기준: '
+    + '<select onchange="outSetWeekBasis(this.value)" style="font-size:12px;padding:1px;border:1px solid var(--bd2);border-radius:4px">'
+    + '<option value="occurrence"'+(basis==='occurrence'?' selected':'')+'>그 요일 첫 등장이 1주차</option>'
+    + '<option value="dom"'+(basis==='dom'?' selected':'')+'>1일 포함 주가 1주차</option>'
+    + '</select></label>';
+
+  return '<div class="memedit" style="font-size:14px">'
+    + '<div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap">'
+    +   '<label>직급 <select onchange="outSetRole(\''+p.personId+'\',this.value)" style="font-size:14px;padding:3px;border:1px solid var(--bd2);border-radius:5px">'+roleOpts+'</select></label>'
+    +   '<label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer">'
+    +     '<input type="checkbox" '+(preg?'checked':'')+' onchange="outSetPregnant(\''+p.personId+'\',this.checked)"> 임산부 🤰</label>'
+    + '</div>'
+    + '<div style="margin-bottom:8px">색상<br><div class="cgrid">'+colorDots+'</div></div>'
+    + '<div style="margin-bottom:8px">요일 고정근무 <span style="color:var(--text3);font-size:12px">(오전·오후/주차별 — 달력 자동 반영)</span>'
+    +   '<div style="margin-top:4px">'+fwTable+'</div></div>'
+    + '<button onclick="outRemoveMember(\''+p.personId+'\')" style="border:1px solid var(--warn);background:#fff;color:var(--warn);border-radius:6px;padding:5px 10px;font-size:13px;cursor:pointer">이 부서에서 빼기</button>'
+    + '</div>';
+}
+function _bindMemberEdit(){ /* 인라인 onchange 사용 — 별도 바인딩 불필요 */ }
+
+function _setDeptAttr(pid, mutate){
+  if(!window.PersonsStore) return;
+  var p = PersonsStore.get(pid); if(!p) return;
+  var da = (p.deptAttrs && p.deptAttrs[WARD_ID]) ? Object.assign({}, p.deptAttrs[WARD_ID]) : {active:true};
+  if(!da.attributes) da.attributes = {pregnant:false, fixedWeekday:{}};
+  mutate(da);
+  PersonsStore.setDeptAttrs(pid, WARD_ID, da);
+  renderRoster();
+  applyFixedWeekday();          // 요일고정 변경 반영
+  if(typeof renderCalendar==='function'){ _calOnly=true; try{renderCalendar();}finally{_calOnly=false;} }
+}
+function outSetRole(pid, role){ _setDeptAttr(pid, function(da){ da.role=role; }); }
+function outSetPregnant(pid, on){ _setDeptAttr(pid, function(da){ da.attributes.pregnant=!!on; }); }
+function outSetColor(pid, col){ _setDeptAttr(pid, function(da){ da.color=col; }); }
+function outSetFWSlot(pid, wk, slot, code){
+  _setDeptAttr(pid, function(da){
+    if(!da.attributes.fixedWeekday) da.attributes.fixedWeekday={};
+    var cur=_normFW(da.attributes.fixedWeekday[wk]) || {am:'',pm:'',weeks:[]};
+    cur[slot]=code||'';
+    if(!cur.am && !cur.pm) delete da.attributes.fixedWeekday[wk];   // 둘 다 비면 규칙 제거
+    else da.attributes.fixedWeekday[wk]=cur;
+  });
+}
+function outSetFWWeek(pid, wk, n, on){
+  _setDeptAttr(pid, function(da){
+    if(!da.attributes.fixedWeekday) da.attributes.fixedWeekday={};
+    var cur=_normFW(da.attributes.fixedWeekday[wk]) || {am:'',pm:'',weeks:[]};
+    var idx=cur.weeks.indexOf(n);
+    if(on && idx<0) cur.weeks.push(n);
+    else if(!on && idx>=0) cur.weeks.splice(idx,1);
+    cur.weeks.sort(function(a,b){return a-b;});
+    da.attributes.fixedWeekday[wk]=cur;
+  });
+}
+function outSetWeekBasis(v){
+  _setWeekBasis(v);
+  applyFixedWeekday();
+  if(typeof renderCalendar==='function'){ _calOnly=true; try{renderCalendar();}finally{_calOnly=false;} }
+  renderRoster();
+}
+
+/* ── 생일 표시 (듀티와 동일 방식) — 생일은 dv6_persons(공유 풀)의 birthday(YYYY-MM-DD) ── */
+function _isBirthdayMonth(bd){
+  if(!bd) return false;
+  var p=String(bd).split('-');
+  return parseInt(p[1],10)===(viewM+1);
+}
+function _birthdaysOnDay(d){
+  var all = window.PersonsStore ? PersonsStore.list() : [];
+  return all.filter(function(p){
+    if(!p.birthday || p.membership!==WARD_ID) return false;   // 이 부서 소속만
+    var bp=String(p.birthday).split('-');
+    return parseInt(bp[1],10)===(viewM+1) && parseInt(bp[2],10)===d;
+  });
+}
+
+/* ── 요일고정 v2: 오전/오후 분리 + 주차 선택 ──
+   fw[wk] 형태:
+     구버전(문자열)  'half'          → {am:'', pm:'half', weeks:[]}  (반차는 오후만)
+                      'work'/'off'/'vac' → {am:code, pm:code, weeks:[]}
+     신버전(객체)    {am, pm, weeks:[1,3]}   weeks 비면 매주
+*/
+function _normFW(v){
+  if(!v) return null;
+  if(typeof v==='string'){
+    if(v==='half') return {am:'', pm:'half', weeks:[]};
+    return {am:v, pm:v, weeks:[]};
+  }
+  return { am:v.am||'', pm:v.pm||'', weeks:Array.isArray(v.weeks)?v.weeks.slice():[] };
+}
+// 주차 기준 옵션: 'occurrence'(기본=그 요일이 그달 처음 도는 날이 1주차) | 'dom'(1일 포함 주가 1주차)
+function _weekBasis(){
+  try{ return localStorage.getItem('cal_week_basis_'+WARD_ID) || 'occurrence'; }catch(_){ return 'occurrence'; }
+}
+function _setWeekBasis(v){
+  try{ localStorage.setItem('cal_week_basis_'+WARD_ID, v); }catch(_){}
+}
+// 그 날짜(d)가 자기 요일의 '몇 번째'인지 (1부터). 기준에 따라 계산.
+function _weekIndexOfWeekday(y, m, d){
+  var basis=_weekBasis();
+  if(basis==='dom'){
+    // 1일이 포함된 주를 1주차로: 캘린더 주 단위(일요일 시작)
+    var firstDow=dow(y,m,1);
+    return Math.floor((d + firstDow - 1)/7) + 1;
+  }
+  // occurrence(기본): 같은 요일이 그달에서 몇 번째로 등장하는지
+  return Math.floor((d-1)/7) + 1;
+}
+
+/* A-4: 요일고정 → 그 달 해당 요일 슬롯에 자동 채우기 (빈 칸만, 공휴일 제외) */
+function applyFixedWeekday(){
+  if(!window.PersonsStore || !window.CalScheduleStore) return;
+  var members = (window.OutpatientAdapter) ? OutpatientAdapter.listMembers(WARD_ID) : [];
+  var total = ndays(viewY, viewM);
+  var changed = false;
+  members.forEach(function(p){
+    var da = (p.deptAttrs && p.deptAttrs[WARD_ID]) ? p.deptAttrs[WARD_ID] : {};
+    var fw = (da.attributes && da.attributes.fixedWeekday) ? da.attributes.fixedWeekday : {};
+    for(var d=1; d<=total; d++){
+      var cell = CalScheduleStore.get(p.personId, viewY, viewM, d);
+      ['am','pm'].forEach(function(slot){
+        if(cell[slot] && cell[slot].fixed){
+          CalScheduleStore.setSlot(p.personId,viewY,viewM,d,slot,{code:'',memo:''});
+          changed = true;
+        }
+      });
+    }
+    if(!Object.keys(fw).length) return;
+    for(var d2=1; d2<=total; d2++){
+      var wd = dow(viewY, viewM, d2);
+      if(wd===0) continue;   // 일요일 슬롯 없음
+      if(CalendarStore.isHoliday(viewY, viewM+1, d2)) continue;   // 공휴일 제외
+      var rule = _normFW(fw[WD_KEYS[wd]]);
+      if(!rule) continue;
+      // 주차 필터: weeks 비었으면 매주, 아니면 이 날의 주차가 포함될 때만
+      if(rule.weeks.length){
+        var wi = _weekIndexOfWeekday(viewY, viewM, d2);
+        if(rule.weeks.indexOf(wi)<0) continue;
+      }
+      var c2 = CalScheduleStore.get(p.personId, viewY, viewM, d2);
+      // 빈 슬롯에만 fixed:true 로 채움. am/pm 각각.
+      if(rule.am && !c2.am.code){ CalScheduleStore.setSlot(p.personId,viewY,viewM,d2,'am',{code:rule.am,memo:'',fixed:true}); changed=true; }
+      if(rule.pm && !c2.pm.code){ CalScheduleStore.setSlot(p.personId,viewY,viewM,d2,'pm',{code:rule.pm,memo:'',fixed:true}); changed=true; }
+    }
+  });
+  if(changed){
+    if(window.CalActiveRepo && CalActiveRepo.saveSchedule) CalActiveRepo.saveSchedule();
+    else if(window.calSaveToStore) calSaveToStore();
+    renderSheet();
+  }
+}
+
+// 간호사 추가 UI 채우기 (배치 후보 + 직급 5종)
+function _renderAddNurseUI(){
+  var sel = document.getElementById('aPersonSel');
+  var roleSel = document.getElementById('aRoleSel');
+  if(!sel || !roleSel) return;
+  var cand = (window.OutpatientAdapter) ? OutpatientAdapter.listPlaceable(WARD_ID) : [];
+  cand.sort(function(a,b){ return (a.name||'').localeCompare(b.name||'','ko'); });
+  if(!cand.length){
+    sel.innerHTML = '<option value="">(직원관리에 미배치 인원이 없습니다)</option>';
+  } else {
+    sel.innerHTML = '<option value="">— 배치할 사람 선택 —</option>'
+      + cand.map(function(p){
+          var tag = p.membership ? ' [타부서]' : ' [미소속]';
+          return '<option value="'+p.personId+'">'+escapeHtml(p.name||p.personId)+tag+'</option>';
+        }).join('');
+  }
+  // 직급 5종 (기본 평간호사)
+  var ROLES_LIST = window.ROLES || ['수간호사','주임','차지','평간호사','신규간호사'];
+  roleSel.innerHTML = ROLES_LIST.map(function(r){
+    return '<option'+(r==='평간호사'?' selected':'')+'>'+r+'</option>';
+  }).join('');
+}
+
+// 배치 실행
+function outAddNurse(){
+  var sel = document.getElementById('aPersonSel');
+  var roleSel = document.getElementById('aRoleSel');
+  var pid = sel ? sel.value : '';
+  if(!pid){ alert('배치할 사람을 선택하세요'); return; }
+  if(!window.OutpatientAdapter){ alert('어댑터 미로드'); return; }
+  OutpatientAdapter.placeIn(WARD_ID, pid, roleSel ? roleSel.value : undefined);
+  var ad = document.getElementById('addDetails'); if(ad) ad.removeAttribute('open');
+  renderRoster();
+  if(typeof renderCalendar==='function') renderCalendar();
+  if(typeof renderSheet==='function') renderSheet();
+}
+// 부서에서 빼기
+function outRemoveMember(pid){
+  if(!confirm('이 인원을 이 부서에서 빼시겠어요? (직원 정보는 직원관리에 남습니다)')) return;
+  if(window.OutpatientAdapter) OutpatientAdapter.removeFrom(WARD_ID, pid);
+  renderRoster();
+  if(typeof renderCalendar==='function') renderCalendar();
+  if(typeof renderSheet==='function') renderSheet();
+}
+renderRoster();
+(function(){
+  var btn=document.getElementById('aAddBtn');
+  if(btn) btn.addEventListener('click', outAddNurse);
+  var det=document.getElementById('addDetails');
+  if(det) det.addEventListener('toggle', function(){ if(det.open) _renderAddNurseUI(); });
 })();
 
-// 현재 보는 연·월 (month 0-based)
-var now = new Date();
-var viewY = now.getFullYear();
-var viewM = now.getMonth();
+/* ── M2c: 월 캘린더 그리드 골격 ──
+   ★ month 규약 주의 (함정):
+       utils.ndays(y,m)/dow(y,m,d) 는 month 0-based (5월=4) — JS Date 관례.
+       CalendarStore.isHoliday(y,m,d)/.name() 는 month 1-based (5월=5).
+     → 내부 상태(viewY, viewM)는 0-based 로 통일하고,
+       CalendarStore 호출 시에만 (viewM+1) 로 변환한다. (듀티 데이터 호환 위해 0-based 유지)              */
+var _today = new Date();
+var viewY = _today.getFullYear();
+var viewM = _today.getMonth();          // 0-based
+var MONTH_KO = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
 
-// ── 부서 가드 (외래 _guardDept 패턴) ─────────────────────────
+function renderCalendar(){
+  var label = document.getElementById('mLabel');
+  var body  = document.getElementById('calBody');
+  var hint  = document.getElementById('calHint');
+  label.textContent = viewY + '년 ' + MONTH_KO[viewM];
+
+  var total   = ndays(viewY, viewM);        // 그 달 일수
+  var firstDow = dow(viewY, viewM, 1);      // 1일의 요일 (0=일)
+  var isThisMonth = (viewY===_today.getFullYear() && viewM===_today.getMonth());
+  var todayD = isThisMonth ? _today.getDate() : -1;
+
+  var cells = [];
+  // 앞쪽 빈 칸 (1일 요일만큼)
+  for(var i=0;i<firstDow;i++) cells.push(null);
+  // 날짜 칸
+  for(var d=1; d<=total; d++) cells.push(d);
+  // 뒤쪽 빈 칸 (7의 배수로 맞춤)
+  while(cells.length % 7 !== 0) cells.push(null);
+
+  // 그 달 근무 데이터 + 사람 이름·색 맵 준비 (M3c)
+  var nameOf = {};
+  var colorOf = {};
+  (window.PersonsStore ? PersonsStore.list() : []).forEach(function(p){
+    nameOf[p.personId]=p.name||'';
+    var da = p.deptAttrs && p.deptAttrs[WARD_ID];
+    if(da && da.color) colorOf[p.personId]=da.color;
+  });
+
+  var html = '';
+  for(var r=0; r<cells.length; r+=7){
+    html += '<tr>';
+    for(var c=0; c<7; c++){
+      var d2 = cells[r+c];
+      if(d2 == null){ html += '<td class="blank"></td>'; continue; }
+      var wd = dow(viewY, viewM, d2);                 // 0=일 … 6=토
+      var holi = CalendarStore.isHoliday(viewY, viewM+1, d2);   // ★ +1 변환
+      var hname = holi ? CalendarStore.name(viewY, viewM+1, d2) : '';
+      var cls = ['daycal'];
+      if(wd===0) cls.push('sun','sund'); if(wd===6) cls.push('sat','satd');
+      if(holi) cls.push('holi');
+      if(d2===todayD) cls.push('today');
+
+      html += '<td class="'+cls.join(' ')+'" data-day="'+d2+'">'
+            +   '<div class="dayhead"><span class="daynum">'+d2+'</span>'
+            +   ((function(){var b=_birthdaysOnDay(d2);return b.length?'<span class="daycake" title="'+escapeHtml(b.map(function(x){return x.name;}).join(', '))+' 생일">🎂</span>':'';})())
+            +   (hname ? '<span class="holiname">'+escapeHtml(hname)+'</span>' : '')
+            +   ((function(){
+                  var evs = CalendarStore.eventsOnDay ? CalendarStore.eventsOnDay(viewY, viewM+1, d2) : [];
+                  if(!evs.length) return '';
+                  return evs.map(function(e){
+                    var c = e.type==='holiday' ? 'var(--warn-d)' : '#185FA5';
+                    var icon = e.type==='holiday' ? '🔴' : '📌';
+                    return '<span class="dayevt" style="color:'+c+'" title="'+escapeHtml(e.name)+'">'+icon+' '+escapeHtml(e.name)+'</span>';
+                  }).join('');
+                })())
+            +   '</div>'
+            +   renderDayStaff(d2)
+            + '</td>';
+    }
+    html += '</tr>';
+  }
+  body.innerHTML = html;
+  hint.textContent = total + '일';
+  if(!_calOnly) renderSheet();   // 출석부도 같은 달로 동기화 (칠하기 중엔 재귀 방지)
+
+  // 슬롯 클릭 → 명단형과 동일한 커서/칠하기 시스템 (클릭=커서 이동, 붓 있으면 칠)
+  Array.prototype.forEach.call(body.querySelectorAll('.slotcell'), function(sc){
+    sc.style.cursor='pointer';
+    sc.addEventListener('click', function(ev){
+      ev.stopPropagation();
+      var pid=sc.getAttribute('data-pid');
+      var d=parseInt(sc.getAttribute('data-day'),10);
+      var slot=sc.getAttribute('data-slot');
+      if(pid&&d&&slot) _paintSlot(pid, viewY, viewM, d, slot);   // 커서 이동(+붓 있으면 칠)
+    });
+  });
+  _paintCursorHighlight();   // 재렌더 후 커서 표시 복원 (달력형)
+  // 슬롯(오전/오후) 외 영역 클릭은 무시 — 그날 전체 편집 팝업이 뜨던 동작 제거.
+  //   근무 편집은 슬롯 셀(.slotcell) 클릭으로만 이뤄짐.
+
+  // 한 날짜 칸의 내용 — 현재 뷰에 따라 분기 (M3d-3)
+  function renderDayStaff(d){
+    if(!window.CalScheduleStore) return '';
+    var view = (window.CalViewPref) ? CalViewPref.get('view') : 'doctor';
+    return (view==='slot') ? renderDaySlot(d) : renderDayDoctor(d);
+  }
+  // 뷰1: 명단(달력형) — 이 부서 전원 세로 쌓기 + 오전/오후 칠하기 슬롯
+  function renderDayDoctor(d){
+    var members = (window.OutpatientAdapter) ? OutpatientAdapter.listMembers(WARD_ID)
+                  : (window.PersonsStore ? PersonsStore.listByDept(WARD_ID) : []);
+    if(members.length===0) return '';
+    var wd = dow(viewY, viewM, d);
+    var holi = CalendarStore.isHoliday(viewY, viewM+1, d);
+    var noSlot = (wd===0 || holi);   // ③ 일요일·공휴일 기본 슬롯 없음
+    var rows = members.map(function(p){
+      var pid=p.personId;
+      var cell = CalScheduleStore.get(pid, viewY, viewM, d);
+      var hasData = (cell.am&&cell.am.code)||(cell.pm&&cell.pm.code);
+      if(noSlot && !hasData) return '';   // 빈 일요일/공휴일 칸은 사람 행 안 만듦
+      var pcol = colorOf[pid] || '';
+      var nameStyle = pcol
+        ? ' style="background:'+pcol+'22;border-left:3px solid '+pcol+';padding-left:5px;border-radius:3px;"'
+        : '';
+      return '<div class="staffrow">'
+        +   '<span class="sname"'+nameStyle+'>'+escapeHtml(nameOf[pid]||p.name||'?')+'</span>'
+        +   '<span class="slot am slotcell" data-pid="'+pid+'" data-day="'+d+'" data-slot="am">'+slotBadge(cell.am)+'</span>'
+        +   '<span class="slot pm slotcell" data-pid="'+pid+'" data-day="'+d+'" data-slot="pm">'+slotBadge(cell.pm)+'</span>'
+        + '</div>';
+    }).filter(Boolean);
+    if(!rows.length) return '';
+    return '<div class="staffwrap">'+rows.join('')+'</div>';
+  }
+  // 뷰2: 자리-슬롯형 — 슬롯(byHalf=오전/오후 | byCode=오전·오후×근무형)별로 인원 모음
+  function renderDaySlot(d){
+    var people = CalScheduleStore.dayPeople(viewY, viewM, d);
+    if(people.length===0) return '';
+    var mode = (window.CalViewPref) ? CalViewPref.get('slotMode') : 'byHalf';
+    // 슬롯 정의: [{key, label}], 각 슬롯에 해당하는 (pid, slot) 수집
+    var buckets = [];   // {label, items:[{pid,code,memo}]}
+    function pushItem(label, pid, slotData){
+      if(!slotData || (!slotData.code && !slotData.memo)) return;
+      var b = null; for(var i=0;i<buckets.length;i++){ if(buckets[i].label===label){ b=buckets[i]; break; } }
+      if(!b){ b={label:label, items:[]}; buckets.push(b); }
+      b.items.push({pid:pid, code:slotData.code, memo:slotData.memo});
+    }
+    people.forEach(function(pid){
+      var cell = CalScheduleStore.get(pid, viewY, viewM, d);
+      if(mode==='byCode'){
+        // 슬롯 = "오전·<근무형>" / "오후·<근무형>"
+        if(cell.am && (cell.am.code||cell.am.memo)) pushItem('오전·'+codeLabel(cell.am.code), pid, cell.am);
+        if(cell.pm && (cell.pm.code||cell.pm.memo)) pushItem('오후·'+codeLabel(cell.pm.code), pid, cell.pm);
+      } else {
+        // byHalf: 오전 / 오후 2슬롯
+        pushItem('오전', pid, cell.am);
+        pushItem('오후', pid, cell.pm);
+      }
+    });
+    if(buckets.length===0) return '';
+    return '<div class="slotwrap">'+buckets.map(function(b){
+      return '<div class="slotgrp"><span class="slbl">'+escapeHtml(b.label)+'</span>'
+        +  '<span class="snames">'+b.items.map(function(it){
+             var sh=(window.CalShifts&&it.code)?CalShifts.get(it.code):null;
+             var col=sh?sh.color:'var(--text)';
+             var nm=escapeHtml(nameOf[it.pid]||'?');
+             var mm=it.memo?('<small>'+escapeHtml(it.memo)+'</small>'):'';
+             return '<span class="sn" style="color:'+col+'">'+nm+mm+'</span>';
+           }).join('')+'</span></div>';
+    }).join('')+'</div>';
+  }
+  function codeLabel(code){ return (window.CalShifts && code) ? (CalShifts.label(code)||code) : (code||''); }
+  // 한 슬롯(오전 또는 오후)의 배지: 코드색 + 라벨 + 메모
+  function slotBadge(slot){ return _slotBadge(slot); }
+}
+
+// A-1: 슬롯 표시 — 공용(달력형·명단형 공유). 코드·메모를 칩으로.
+function _slotBadge(slot){
+  if(!slot || (!slot.code && !slot.memo)) return '<span class="empty">·</span>';
+  var sh = (window.CalShifts && slot.code) ? CalShifts.get(slot.code) : null;
+  var col = sh ? sh.color : 'var(--text2)';
+  var bg  = sh ? sh.bg : 'transparent';
+  var lab = sh ? sh.label : '';
+  var memo = slot.memo ? escapeHtml(slot.memo) : '';
+  var txt = lab + (memo ? (lab?' ':'')+memo : '');
+  return '<span class="badge" style="color:'+col+';background:'+bg+'">'+escapeHtml(txt)+'</span>';
+}
+
+/* ── M2d: 출석부 매트릭스 (사람 × 날짜) ──
+   달력과 동일한 viewY/viewM 사용. 명단(PersonsStore)을 세로, 날짜를 가로로.
+   각 칸 = 오전/오후 2분할 빈 칸. 토/일/공휴일은 헤더·칸에 색 표시.
+   읽기 전용 — 저장 없음.                                                             */
+var WD_KO = ['일','월','화','수','목','금','토'];
+function renderSheet(){
+  var tbl = document.getElementById('sheetTable');
+  var monthLbl = document.getElementById('sheetMonth');
+  if(!tbl) return;
+  monthLbl.textContent = '· ' + viewY + '년 ' + MONTH_KO[viewM];
+
+  // 외래 소속만, manualOrder 순 (어댑터). 커서 네비용으로 순서 저장.
+  var people = (window.OutpatientAdapter)
+               ? OutpatientAdapter.listMembers(WARD_ID)
+               : ((window.PersonsStore && PersonsStore.listByDept) ? PersonsStore.listByDept(WARD_ID) : []);
+  _sheetPeople = people.map(function(p){ return p.personId; });
+  var total = ndays(viewY, viewM);
+
+  // 헤더: 이름칸 + 날짜 1..말일
+  var thead = '<thead><tr><th class="namecol">이름＼날짜</th>';
+  for(var d=1; d<=total; d++){
+    var wd = dow(viewY, viewM, d);
+    var holi = CalendarStore.isHoliday(viewY, viewM+1, d);
+    var hcls = holi ? 'holi' : (wd===6 ? 'satd' : (wd===0 ? 'sund' : ''));
+    thead += '<th class="'+hcls+'">'+d+'<span class="wd">'+WD_KO[wd]+'</span></th>';
+  }
+  thead += '</tr></thead>';
+
+  // 본문: 사람마다 한 행, 칸마다 오전/오후 2분할 (A-1: 데이터 연결 + 슬롯 식별자)
+  var tbody = '<tbody>';
+  if(people.length === 0){
+    tbody += '<tr><td class="namecol">—</td><td colspan="'+total
+          + '" style="color:var(--text2);padding:10px;text-align:center;font-size:14px">'
+          + '이 부서 소속 간호사가 없습니다 (좌측 “＋ 간호사 추가”로 배치)</td></tr>';
+  } else {
+    people.forEach(function(p){
+      var pid = p.personId;
+      var dn = (p.deptAttrs && p.deptAttrs[WARD_ID]) ? p.deptAttrs[WARD_ID] : {};
+      var role = dn.role || '';
+      tbody += '<tr><td class="namecol">'+escapeHtml(p.name||'(이름없음)')
+            +  (role? ' <span style="font-size:12px;color:var(--text3)">'+escapeHtml(role)+'</span>':'')+'</td>';
+      for(var d2=1; d2<=total; d2++){
+        var wd2 = dow(viewY, viewM, d2);
+        var holi2 = CalendarStore.isHoliday(viewY, viewM+1, d2);
+        var ccls = holi2 ? 'holi' : (wd2===6 ? 'satd' : (wd2===0 ? 'sund' : ''));
+        var cell = (window.CalScheduleStore) ? CalScheduleStore.get(pid, viewY, viewM, d2) : null;
+        var am = cell ? cell.am : null, pm = cell ? cell.pm : null;
+        // ③ 일요일·공휴일은 기본 슬롯 없음. 단, 이미 입력된 근무가 있으면 표시(대체공휴일 근무 등).
+        var noSlot = (wd2===0 || holi2);
+        var hasData = (am && am.code) || (pm && pm.code);
+        if(noSlot && !hasData){
+          tbody += '<td class="daycell '+ccls+' noslot"></td>';
+        } else {
+          tbody += '<td class="daycell '+ccls+'"><div class="ampm">'
+                +    '<div class="am slotcell" data-pid="'+pid+'" data-day="'+d2+'" data-slot="am">'+_slotBadge(am)+'</div>'
+                +    '<div class="pm slotcell" data-pid="'+pid+'" data-day="'+d2+'" data-slot="pm">'+_slotBadge(pm)+'</div>'
+                +    '</div></td>';
+        }
+      }
+      tbody += '</tr>';
+    });
+  }
+  tbody += '</tbody>';
+  tbl.innerHTML = thead + tbody;
+  _bindSheetPainting();
+}
+
+/* ── A-2: 팔레트 + 칠하기 ── */
+var BRUSHES = [
+  {key:'1', code:'work'},  {key:'2', code:'vac'},  {key:'3', code:'half'},
+  {key:'4', code:'month'}, {key:'5', code:'sick'}, {key:'6', code:'event'},
+  {key:'0', code:'off'}
+];
+var _brush = null;   // 현재 붓 code (null=선택 안 됨, '__erase'=지우개)
+
+function renderPalette(){
+  var boxes = document.querySelectorAll('.palette-box');
+  if(!boxes.length){ var legacy=document.getElementById('palette'); if(legacy) boxes=[legacy]; else return; }
+  Array.prototype.forEach.call(boxes, function(box){
+    Array.prototype.forEach.call(box.querySelectorAll('.brush'), function(b){ b.remove(); });
+    BRUSHES.forEach(function(br){
+      var sh = (window.CalShifts) ? CalShifts.get(br.code) : null;
+      if(!sh) return;
+      var el = document.createElement('button');
+      el.className = 'brush' + (_brush===br.code ? ' on' : '');
+      el.setAttribute('data-code', br.code);
+      el.textContent = br.key + ' ' + sh.label;
+      el.style.cssText = 'border:1.5px solid '+(_brush===br.code?sh.color:'var(--bd2)')
+        + ';background:'+(_brush===br.code?sh.bg:'#fff')+';color:'+sh.color
+        + ';border-radius:7px;padding:4px 9px;font-size:14px;font-weight:600;cursor:pointer;';
+      el.addEventListener('click', function(){ setBrush(_brush===br.code?null:br.code); });
+      box.appendChild(el);
+    });
+    var er = document.createElement('button');
+    er.className = 'brush' + (_brush==='__erase'?' on':'');
+    er.textContent = '⌫ 지우기';
+    er.style.cssText='border:1.5px solid '+(_brush==='__erase'?'var(--text)':'var(--bd2)')
+      +';background:#fff;color:var(--text2);border-radius:7px;padding:4px 9px;font-size:14px;cursor:pointer;';
+    er.addEventListener('click', function(){ setBrush(_brush==='__erase'?null:'__erase'); });
+    box.appendChild(er);
+  });
+}
+function setBrush(code){ _brush = code; renderPalette(); if(typeof _syncCalTopHeight==='function') _syncCalTopHeight(); }
+
+var _calOnly = false;
+var _sheetPeople = [];          // 현재 명단형 사람 순서 (커서 ↑↓ 이동용)
+var _cursor = null;             // {pid, day, slot} 또는 null
+
+// 코드키 → 시프트코드 매핑 (붓과 동일)
+function _codeForKey(k){
+  var br = BRUSHES.filter(function(b){ return b.key===k; })[0];
+  return br ? br.code : null;
+}
+
+// 한 칸에 코드 쓰기 (저장 + 양뷰 갱신). code='' = 비우기.
+function _writeSlot(pid, y, m, d, slot, code){
+  if(!window.CalScheduleStore) return;
+  CalScheduleStore.setSlot(pid, y, m, d, slot, {code:code||'', memo:''});
+  if(window.CalActiveRepo && CalActiveRepo.saveSchedule) CalActiveRepo.saveSchedule();
+  else if(window.calSaveToStore) calSaveToStore();
+  renderSheet();
+  if(typeof renderRoster==='function') renderRoster();   // D-1: 연차 현황 갱신
+  _calOnly = true; try { if(typeof renderCalendar==='function') renderCalendar(); }
+  finally { _calOnly = false; }
+}
+
+// 붓 클릭 칠하기 (보조 — 붓이 선택돼 있을 때만)
+function _paintSlot(pid, y, m, d, slot){
+  if(_brush===null) { setCursor(pid, d, slot); return; }  // 붓 없으면 커서만 이동
+  var code = (_brush==='__erase') ? '' : _brush;
+  _writeSlot(pid, y, m, d, slot, code);
+  setCursor(pid, d, slot);
+}
+
+// ── 커서 ──
+function setCursor(pid, day, slot){
+  _cursor = { pid:pid, day:day, slot:slot };
+  _paintCursorHighlight();
+}
+function _paintCursorHighlight(){
+  // 명단형(sheetTable)과 달력형(calTable) 양쪽에서 커서 칸 표시
+  var tables=[document.getElementById('sheetTable'), document.getElementById('calTable')].filter(Boolean);
+  if(!tables.length) return;
+  tables.forEach(function(tbl){
+    Array.prototype.forEach.call(tbl.querySelectorAll('.slotcell.cursor'), function(c){ c.classList.remove('cursor'); });
+  });
+  if(!_cursor) return;
+  var sel='.slotcell[data-pid="'+_cursor.pid+'"][data-day="'+_cursor.day+'"][data-slot="'+_cursor.slot+'"]';
+  tables.forEach(function(tbl){
+    var cell=tbl.querySelector(sel);
+    if(cell){ cell.classList.add('cursor'); }   // 하이라이트만 — scrollIntoView 제거(클릭 시 화면 급이동 방지)
+  });
+}
+// 커서 이동 (dx=날짜/슬롯 가로, dy=사람 세로). 가로는 슬롯(am→pm→다음날am) 단위.
+// 그 날이 '입력 불가 칸'인지 — 일요일/공휴일이면서 그 사람에게 데이터도 없는 경우
+function _isSkipDay(pid, day){
+  var wd = dow(viewY, viewM, day);
+  var holi = window.CalendarStore && CalendarStore.isHoliday(viewY, viewM+1, day);
+  if(wd!==0 && !holi) return false;            // 평일은 안 건너뜀
+  var c = CalScheduleStore.get(pid, viewY, viewM, day);
+  var hasData = (c.am&&c.am.code)||(c.pm&&c.pm.code);
+  return !hasData;                              // 데이터 있으면 멈춤(예외근무), 없으면 건너뜀
+}
+function moveCursor(dir){
+  if(!_cursor){
+    if(_sheetPeople.length) setCursor(_sheetPeople[0], 1, 'am');
+    return;
+  }
+  var total=ndays(viewY,viewM);
+  var pi=_sheetPeople.indexOf(_cursor.pid);
+  var pid=_cursor.pid;
+  var day=_cursor.day, slot=_cursor.slot;
+  if(dir==='right'){
+    var g=0;
+    while(g++<800){
+      if(slot==='am'){ slot='pm'; } else { slot='am'; day++; }
+      if(day>total){ day=total; slot='pm'; break; }
+      if(!_isSkipDay(pid, day)) break;       // 입력 가능한 날이면 멈춤
+      // 건너뛸 날이면 그 날을 통째로 지나가도록 다음 루프에서 day++ 되게 slot을 pm으로
+      slot='pm';
+    }
+  } else if(dir==='left'){
+    var g2=0;
+    while(g2++<800){
+      if(slot==='pm'){ slot='am'; } else { slot='pm'; day--; }
+      if(day<1){ day=1; slot='am'; break; }
+      if(!_isSkipDay(pid, day)) break;
+      slot='am';
+    }
+  } else if(dir==='up'){ if(pi>0) pi--; pid=_sheetPeople[pi]||pid; }
+  else if(dir==='down'){ if(pi<_sheetPeople.length-1) pi++; pid=_sheetPeople[pi]||pid; }
+  setCursor(pid, day, slot);
+}
+// 코드키 입력 → 현재 커서 칸에 쓰고 오른쪽 자동 전진
+function typeAtCursor(code){
+  if(!_cursor) { if(_sheetPeople.length) setCursor(_sheetPeople[0],1,'am'); if(!_cursor) return; }
+  _writeSlot(_cursor.pid, viewY, viewM, _cursor.day, _cursor.slot, code);
+  moveCursor('right');   // 자동 전진
+}
+
+function _bindSheetPainting(){
+  var tbl = document.getElementById('sheetTable'); if(!tbl) return;
+  Array.prototype.forEach.call(tbl.querySelectorAll('.slotcell'), function(cell){
+    cell.style.cursor = 'pointer';
+    cell.addEventListener('click', function(){
+      var pid=cell.getAttribute('data-pid');
+      var d=parseInt(cell.getAttribute('data-day'),10);
+      var slot=cell.getAttribute('data-slot');
+      if(pid&&d&&slot) _paintSlot(pid, viewY, viewM, d, slot);  // 클릭=커서 이동(+붓 있으면 칠)
+    });
+  });
+  _paintCursorHighlight();  // 재렌더 후 커서 표시 복원
+}
+
+document.addEventListener('keydown', function(e){
+  if(e.target && (e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')) return;
+  // 방향키 — 커서 이동
+  if(e.key==='ArrowRight'){ moveCursor('right'); e.preventDefault(); return; }
+  if(e.key==='ArrowLeft'){  moveCursor('left');  e.preventDefault(); return; }
+  if(e.key==='ArrowUp'){    moveCursor('up');    e.preventDefault(); return; }
+  if(e.key==='ArrowDown'){  moveCursor('down');  e.preventDefault(); return; }
+  if(e.key==='Tab' && _cursor){ moveCursor('right'); e.preventDefault(); return; }
+  if(e.key==='Escape'){ _cursor=null; _paintCursorHighlight(); setBrush(null); return; }
+  if(e.key==='Backspace' || e.key==='Delete'){
+    if(_cursor){ _writeSlot(_cursor.pid,viewY,viewM,_cursor.day,_cursor.slot,''); moveCursor('right'); }
+    e.preventDefault(); return;
+  }
+  // 코드키 — 커서가 있으면 직접 입력+전진, 없으면 붓 선택(보조)
+  var code=_codeForKey(e.key);
+  if(code){
+    if(_cursor){ typeAtCursor(code); }
+    else { setBrush(_brush===code?null:code); }
+  }
+});
+
+function shiftMonth(delta){
+  viewM += delta;
+  if(viewM < 0){ viewM = 11; viewY--; }
+  else if(viewM > 11){ viewM = 0; viewY++; }
+  renderCalendar();
+  renderRoster();   // 이달 생일 케이크 등 월 의존 표시 갱신
+  if(typeof applyFixedWeekday==='function') applyFixedWeekday();
+}
+document.getElementById('prevM').addEventListener('click', function(){ shiftMonth(-1); });
+document.getElementById('nextM').addEventListener('click', function(){ shiftMonth(1); });
+document.getElementById('todayB').addEventListener('click', function(){
+  viewY = _today.getFullYear(); viewM = _today.getMonth(); renderCalendar(); renderRoster();
+});
+
+/* M3d-3: 뷰 전환 탭 (의사표 ↔ 슬롯) */
+Array.prototype.forEach.call(document.querySelectorAll('#viewTabs .vtab'), function(tab){
+  tab.addEventListener('click', function(){
+    var v = tab.getAttribute('data-view');
+    if(window.CalViewPref) CalViewPref.setView(v);
+    syncViewTabs();
+    renderCalendar();
+  });
+});
+function syncViewTabs(){
+  var cur = (window.CalViewPref) ? CalViewPref.get('view') : 'doctor';
+  Array.prototype.forEach.call(document.querySelectorAll('#viewTabs .vtab'), function(t){
+    t.className = 'vtab' + (t.getAttribute('data-view')===cur ? ' on' : '');
+  });
+}
+
+/* ── M3e-1: JSON 백업/복원 ── */
+function pad2(n){ return String(n).padStart(2,'0'); }
+function exportJSON(){
+  try{
+    var data = {
+      app:'calendar', version:1, exportedAt:new Date().toISOString(),
+      wardId: WARD_ID,
+      schedule: CalScheduleStore.all(),
+      viewPref: (window.CalViewPref)? CalViewPref.all() : null,
+      // 인원은 공유 풀이라 참조용 스냅샷만 (복원 시 풀을 덮지 않음)
+      personsSnapshot: (window.PersonsStore)? PersonsStore.list() : []
+    };
+    var blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    var url = URL.createObjectURL(blob);
+    var now = new Date();
+    var ts = now.getFullYear()+pad2(now.getMonth()+1)+pad2(now.getDate())+'_'+pad2(now.getHours())+pad2(now.getMinutes());
+    var a = document.createElement('a');
+    a.href=url; a.download='비교대_'+viewY+'-'+pad2(viewM+1)+'_'+ts+'.json'; a.click();
+    URL.revokeObjectURL(url);
+    flashTool('백업 저장 완료 ✓');
+  }catch(e){ alert('백업 실패: '+e.message); }
+}
+function importJSON(evt){
+  var file = evt.target.files[0]; if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e){
+    try{
+      var data = JSON.parse(e.target.result);
+      if(data.app!=='calendar' || !data.schedule){
+        alert('⚠️ 올바른 비교대 백업 파일이 아닙니다.\n(듀티 파일이거나 손상된 파일일 수 있습니다.)');
+        evt.target.value=''; return;
+      }
+      var cnt = Object.keys(data.schedule).length;
+      if(!confirm('백업을 불러오면 현재 비교대 근무표가 파일 내용으로 교체됩니다.\n'
+        +'(근무 칸 '+cnt+'개) 계속할까요?\n\n※ 인원(공유 풀)은 변경되지 않습니다.')){
+        evt.target.value=''; return;
+      }
+      CalScheduleStore.setAll(data.schedule);
+      if(window.CalActiveRepo) CalActiveRepo.saveSchedule();
+      if(data.viewPref && window.CalViewPref){
+        if(data.viewPref.slotMode) CalViewPref.set('slotMode', data.viewPref.slotMode);
+        if(data.viewPref.defaultView) CalViewPref.set('defaultView', data.viewPref.defaultView);
+      }
+      renderCalendar();
+      flashTool('복원 완료 ✓ ('+cnt+'칸)');
+    }catch(err){ alert('복원 실패: '+err.message); }
+    evt.target.value='';
+  };
+  reader.readAsText(file);
+}
+var _toolTimer=null;
+function flashTool(msg){
+  var hint=document.getElementById('calHint');
+  var prev=hint.textContent; hint.textContent=msg; hint.style.color='var(--green)';
+  clearTimeout(_toolTimer); _toolTimer=setTimeout(function(){ hint.style.color=''; renderCalendar(); }, 2000);
+}
+document.getElementById('btnExport').addEventListener('click', exportJSON);
+document.getElementById('btnImport').addEventListener('click', function(){ document.getElementById('importFile').click(); });
+document.getElementById('importFile').addEventListener('change', importJSON);
+
+/* ── M3e-2: 설정 모달 ── */
+function openSettings(){
+  syncSettingOpts();
+  document.getElementById('setSaved').textContent='';
+  document.getElementById('setModal').classList.add('open');
+}
+function closeSettings(){ document.getElementById('setModal').classList.remove('open'); renderCalendar(); }
+function syncSettingOpts(){
+  if(!window.CalViewPref) return;
+  ['slotMode','defaultView'].forEach(function(k){
+    var cur=CalViewPref.get(k);
+    Array.prototype.forEach.call(document.querySelectorAll('.opt[data-k="'+k+'"]'), function(o){
+      o.className='opt'+(o.getAttribute('data-v')===cur?' on':'');
+    });
+  });
+}
+Array.prototype.forEach.call(document.querySelectorAll('#setModal .opt'), function(opt){
+  opt.addEventListener('click', function(){
+    var k=opt.getAttribute('data-k'), v=opt.getAttribute('data-v');
+    if(window.CalViewPref) CalViewPref.set(k,v);
+    syncSettingOpts();
+    var s=document.getElementById('setSaved'); s.textContent='✓ 저장됨'; s.style.color='var(--green)';
+  });
+});
+document.getElementById('btnSettings').addEventListener('click', openSettings);
+document.getElementById('setClose').addEventListener('click', closeSettings);
+document.getElementById('setDone').addEventListener('click', closeSettings);
+document.getElementById('setModal').addEventListener('click', function(e){ if(e.target===this) closeSettings(); });
+
+/* ── M3e-3: 인쇄 (현재 달) ── */
+(function(){
+  var cb=document.getElementById('calCopyPrev');
+  if(cb) cb.addEventListener('click', function(){
+    if(confirm('지난달 근무를 요일 기준으로 이번 달에 복사합니다.\n(공휴일 제외, 이미 입력된 칸은 유지)\n\n계속할까요?')) copyPrevMonth();
+  });
+})();
+
+// ① 캘린더 폭 조절 (사용자 지정, localStorage 저장)
+var _CAL_W_KEY = 'cal_wrap_width';
+var _CAL_W_STEPS = [1000, 1200, 1400, 1600, 1900, 2200, 2600];   // 와이드 화면 대응
+var _CAL_W_DEFAULT = 1400;
+function _applyCalWidth(px){
+  // 화면보다 넓게 지정되면 화면 폭(여백 제외)까지만 — 와이드 모니터를 꽉 채움
+  document.documentElement.style.setProperty('--wrap-w', px+'px');
+  try{ localStorage.setItem(_CAL_W_KEY, String(px)); }catch(_){}
+}
+function _curCalWidth(){
+  var v = 0; try{ v = parseInt(localStorage.getItem(_CAL_W_KEY),10); }catch(_){}
+  return (v && !isNaN(v)) ? v : _CAL_W_DEFAULT;
+}
+function _stepCalWidth(dir){
+  var cur=_curCalWidth();
+  var i=_CAL_W_STEPS.indexOf(cur);
+  if(i<0){
+    i=0; var best=1e9;
+    _CAL_W_STEPS.forEach(function(s,idx){ var d=Math.abs(s-cur); if(d<best){best=d;i=idx;} });
+  }
+  i = Math.max(0, Math.min(_CAL_W_STEPS.length-1, i+dir));
+  _applyCalWidth(_CAL_W_STEPS[i]);
+}
+(function(){
+  _applyCalWidth(_curCalWidth());   // 저장된 폭 복원
+  var nb=document.getElementById('calNarrow'), wb=document.getElementById('calWide');
+  if(nb) nb.addEventListener('click', function(){ _stepCalWidth(-1); });
+  if(wb) wb.addEventListener('click', function(){ _stepCalWidth(1); });
+})();
+
+// ⑫ 지난달 복사 — 요일 기준 매핑 (날짜 아님). 공휴일 제외, 채워진 칸 보존.
+function copyPrevMonth(){
+  if(!window.CalScheduleStore) return;
+  var pm = viewM-1, py = viewY;
+  if(pm<0){ pm=11; py--; }
+  // 지난달: 요일별 N번째 날짜 목록 만들기 → {wd: [d1,d2,...]}
+  var prevByWd = {0:[],1:[],2:[],3:[],4:[],5:[],6:[]};
+  var prevTotal = ndays(py, pm);
+  for(var pd=1; pd<=prevTotal; pd++){ prevByWd[dow(py,pm,pd)].push(pd); }
+  var members = (window.OutpatientAdapter) ? OutpatientAdapter.listMembers(WARD_ID) : [];
+  var curTotal = ndays(viewY, viewM);
+  var curByWdIndex = {0:0,1:0,2:0,3:0,4:0,5:0,6:0};
+  var copied = 0, skipped = 0;
+  for(var d=1; d<=curTotal; d++){
+    var wd = dow(viewY, viewM, d);
+    var idx = curByWdIndex[wd]++;            // 이번 달 이 요일의 N번째
+    if(CalendarStore.isHoliday(viewY, viewM+1, d)) continue;   // 공휴일 제외
+    var srcDay = prevByWd[wd][idx];          // 지난달 같은 요일 N번째
+    if(srcDay==null) continue;               // 지난달에 그 요일 N번째가 없으면 skip
+    members.forEach(function(p){
+      var src = CalScheduleStore.get(p.personId, py, pm, srcDay);
+      ['am','pm'].forEach(function(slot){
+        var cur = CalScheduleStore.get(p.personId, viewY, viewM, d);
+        if(cur[slot].code){ skipped++; return; }            // 이미 있으면 보존
+        if(src[slot] && src[slot].code){
+          CalScheduleStore.setSlot(p.personId, viewY, viewM, d, slot, {code:src[slot].code, memo:src[slot].memo||''});
+          copied++;
+        }
+      });
+    });
+  }
+  if(window.CalActiveRepo && CalActiveRepo.saveSchedule) CalActiveRepo.saveSchedule();
+  else if(window.calSaveToStore) calSaveToStore();
+  renderSheet(); if(typeof renderRoster==='function') renderRoster();
+  _calOnly=true; try{ renderCalendar(); }finally{ _calOnly=false; }
+  if(typeof flashTool==='function') flashTool('지난달 복사: '+copied+'칸 ('+skipped+'칸은 기존 유지)');
+}
+
+document.getElementById('btnPrint').addEventListener('click', function(){ printCalendar(); });
+
+// 인쇄: 현재 달력형(탁상 달력) 그대로 가로 한 페이지로. 달력형이 아니면 전환 후 인쇄, 복귀.
+function printCalendar(){
+  var deptNm = (window.DeptRegistry && DeptRegistry.get(WARD_ID)) ? DeptRegistry.get(WARD_ID).name
+             : (document.getElementById('pageTitle') ? document.getElementById('pageTitle').textContent : '근무표');
+  var t=document.getElementById('printTitle');
+  if(t) t.textContent = deptNm + ' — ' + viewY + '년 ' + MONTH_KO[viewM] + ' 근무표';
+  // 달력형으로 강제 전환(슬롯형이면 매트릭스라 인쇄 부적합)
+  var prevView = (window.CalViewPref) ? CalViewPref.get('view') : 'doctor';
+  if(prevView !== 'doctor'){
+    if(window.CalViewPref) CalViewPref.set('view','doctor');
+    renderCalendar();
+  }
+  // 한 장에 들어가도록 축소율 계산 → CSS 변수로 전달
+  _fitPrintScale();
+  window.print();
+  // 인쇄 후 원래 보기로 복귀
+  if(prevView !== 'doctor'){
+    if(window.CalViewPref) CalViewPref.set('view', prevView);
+    renderCalendar();
+  }
+}
+
+// 달력 실제 크기 vs A4 가로 인쇄영역을 비교해 1장에 맞는 배율을 --print-scale 에 설정.
+function _fitPrintScale(){
+  try{
+    var card = document.querySelector('.main-col .card');
+    var tbl  = document.getElementById('calTable');
+    var title= document.getElementById('printTitle');
+    if(!tbl) return;
+    // A4 가로 인쇄 가능 영역(margin 6mm) ≈ 285mm x 198mm. mm→px(96dpi: 1mm≈3.7795px)
+    var MM = 3.7795;
+    var availW = (297 - 12) * MM;   // ≈ 1077px
+    var availH = (210 - 12) * MM;   // ≈ 748px
+    // 콘텐츠 실제 크기(현재 화면 렌더 기준)
+    var contentW = tbl.scrollWidth;
+    var contentH = tbl.scrollHeight + (title ? title.offsetHeight + 8 : 0);
+    if(contentW<=0 || contentH<=0){ document.documentElement.style.setProperty('--print-scale','1'); return; }
+    var scale = Math.min(availW/contentW, availH/contentH, 1);
+    // 너무 작아지지 않게 하한(가독성) — 그래도 1장 우선이므로 0.3까지 허용
+    scale = Math.max(scale, 0.3);
+    document.documentElement.style.setProperty('--print-scale', scale.toFixed(3));
+  }catch(e){ document.documentElement.style.setProperty('--print-scale','1'); }
+}
+
+// ⑮ 통계 — 1)일자별 인원 2)사람별 근무일 3)연차 소진
+function renderStats(){
+  var body=document.getElementById('statsBody'); if(!body) return;
+  document.getElementById('statsMonth').textContent = viewY+'년 '+MONTH_KO[viewM];
+  var members=(window.OutpatientAdapter)?OutpatientAdapter.listMembers(WARD_ID):[];
+  var total=ndays(viewY,viewM);
+  var nameOf={}; members.forEach(function(p){ nameOf[p.personId]=p.name||p.personId; });
+
+  // 1) 일자별 근무 인원 (오전·오후 중 'work' 있는 사람 수)
+  var perDay=[];
+  for(var d=1; d<=total; d++){
+    var cnt=0;
+    members.forEach(function(p){
+      var c=CalScheduleStore.get(p.personId,viewY,viewM,d);
+      if((c.am&&c.am.code==='work')||(c.pm&&c.pm.code==='work')) cnt++;
+    });
+    perDay.push({d:d, wd:dow(viewY,viewM,d), cnt:cnt});
+  }
+  var maxDay=Math.max(1,...perDay.map(function(x){return x.cnt;}));
+  var WDk=['일','월','화','수','목','금','토'];
+  var day1='<table style="width:100%;border-collapse:collapse;font-size:13px"><tbody>'
+    + perDay.map(function(x){
+        var col=x.wd===0?'#C0392B':(x.wd===6?'#1E6DBF':'var(--text2)');
+        var bar=Math.round(x.cnt/maxDay*100);
+        return '<tr><td style="width:42px;color:'+col+';padding:1px 4px">'+x.d+'('+WDk[x.wd]+')</td>'
+          +'<td style="padding:1px 4px"><span style="display:inline-block;height:9px;background:var(--primary);width:'+bar+'%;border-radius:2px;vertical-align:middle"></span> '+x.cnt+'</td></tr>';
+      }).join('') + '</tbody></table>';
+
+  // 2) 사람별 근무일수 (work 슬롯 0.5일 환산)
+  var perPerson=members.map(function(p){
+    var wk=0;
+    for(var d=1; d<=total; d++){
+      var c=CalScheduleStore.get(p.personId,viewY,viewM,d);
+      if(c.am&&c.am.code==='work') wk+=0.5;
+      if(c.pm&&c.pm.code==='work') wk+=0.5;
+    }
+    return {name:nameOf[p.personId], days:wk};
+  }).sort(function(a,b){return b.days-a.days;});
+  var maxP=Math.max(1,...perPerson.map(function(x){return x.days;}));
+  var day2=perPerson.length? '<table style="width:100%;border-collapse:collapse;font-size:13px"><tbody>'
+    + perPerson.map(function(x){
+        var bar=Math.round(x.days/maxP*100);
+        return '<tr><td style="width:80px;padding:1px 4px">'+escapeHtml(x.name)+'</td>'
+          +'<td style="padding:1px 4px"><span style="display:inline-block;height:9px;background:#1A8C62;width:'+bar+'%;border-radius:2px;vertical-align:middle"></span> '+x.days+'일</td></tr>';
+      }).join('')+'</tbody></table>' : '<p style="font-size:14px;color:var(--text2)">인원 없음</p>';
+
+  // 3) 연차 소진 (전체 기간)
+  var day3=members.length? '<table style="width:100%;border-collapse:collapse;font-size:13px"><tbody>'
+    + members.map(function(p){
+        var st=(window.CalLeave&&CalLeave.status)?CalLeave.status(p.personId):{total:null,usedOutpatient:0,remaining:null};
+        var totalStr=st.total!=null?(st.usedOutpatient+'/'+st.total+'일 (남음 '+st.remaining+')'):(st.usedOutpatient+'일 (총량 미설정)');
+        var pct=st.total?Math.round(st.usedOutpatient/st.total*100):0;
+        var col=st.total&&st.remaining<=0?'var(--warn)':'#C0781A';
+        return '<tr><td style="width:80px;padding:1px 4px">'+escapeHtml(nameOf[p.personId])+'</td>'
+          +'<td style="padding:1px 4px"><span style="display:inline-block;height:9px;background:'+col+';width:'+pct+'%;border-radius:2px;vertical-align:middle"></span> '+totalStr+'</td></tr>';
+      }).join('')+'</tbody></table>' : '';
+
+  function sec(t,c){ return '<div style="margin-bottom:14px"><div style="font-size:14px;font-weight:700;color:var(--primary-d);margin-bottom:5px">'+t+'</div>'+c+'</div>'; }
+  body.innerHTML = sec('① 일자별 근무 인원',day1) + sec('② 사람별 근무일수 (이번 달)',day2) + sec('③ 연차 소진 (전체)',day3);
+}
+(function(){
+  var b=document.getElementById('btnStats');
+  if(b) b.addEventListener('click', function(){ renderStats(); document.getElementById('statsModal').classList.add('open'); });
+  var c=document.getElementById('statsClose');
+  if(c) c.addEventListener('click', function(){ document.getElementById('statsModal').classList.remove('open'); });
+  var bg=document.getElementById('statsModal');
+  if(bg) bg.addEventListener('click', function(e){ if(e.target===bg) bg.classList.remove('open'); });
+})();
+
+// ④ 초기화 — 이 부서 근무표만 비움 (인원·부서특성은 보존)
+document.getElementById('btnReset').addEventListener('click', function(){
+  var nm = (typeof WARD_NAME!=='undefined' && WARD_NAME) ? WARD_NAME : '이 부서';
+  if(!confirm('['+nm+'] 근무표를 전부 비웁니다.\n(소속 인원·직급·요일고정 설정은 유지됩니다. 근무 입력만 삭제)\n\n계속할까요?')) return;
+  if(window.CalScheduleStore && CalScheduleStore.setAll){
+    CalScheduleStore.setAll({});
+    if(window.CalActiveRepo && CalActiveRepo.saveSchedule) CalActiveRepo.saveSchedule();
+    else if(window.calSaveToStore) calSaveToStore();
+    renderSheet();
+    _calOnly=true; try{ renderCalendar(); }finally{ _calOnly=false; }
+    if(typeof flashTool==='function') flashTool('초기화 완료 ✓');
+  }
+});
+
+// ⑤ 자동배치 — 외래 베이스 룰: 요일고정 우선 → 그 외 모두 근무 → 토요일은 오전만.
+//    일요일·공휴일 제외. 빈 칸만 채움(수동 입력 보존). 재실행 가능(auto:true 분만 갱신).
+document.getElementById('btnAuto').addEventListener('click', function(){
+  if(!window.PersonsStore || !window.CalScheduleStore || !window.OutpatientAdapter) return;
+  var members = OutpatientAdapter.listMembers(WARD_ID);
+  if(!members.length){ alert('배치할 인원이 없습니다. 먼저 간호사를 추가하세요.'); return; }
+  var monthLabel = viewY+'년 '+(viewM+1)+'월';
+  if(!confirm(monthLabel+' 자동배치를 실행합니다.\n\n· 요일 고정근무가 있으면 그대로 반영\n· 그 외 평일은 오전·오후 근무, 토요일은 오전만\n· 일요일·공휴일 제외\n· 직접 입력한 칸은 그대로 보존\n\n계속할까요?')) return;
+
+  var total = ndays(viewY, viewM);
+  // 1) 이전 자동배치분(auto:true) 걷어냄 — 재실행 시 깨끗이 다시 깖. 수동(flag 없음)은 보존.
+  members.forEach(function(p){
+    for(var d=1; d<=total; d++){
+      var cell = CalScheduleStore.get(p.personId, viewY, viewM, d);
+      ['am','pm'].forEach(function(slot){
+        if(cell[slot] && cell[slot].auto){
+          CalScheduleStore.setSlot(p.personId,viewY,viewM,d,slot,{code:'',memo:''});
+        }
+      });
+    }
+  });
+  // 2) 요일 고정룰 먼저 적용 (fixed:true 로 채움 — 자동배치보다 우선)
+  applyFixedWeekday();
+  // 3) 남은 빈 칸을 베이스 룰로 채움 (auto:true)
+  var filled=0;
+  members.forEach(function(p){
+    for(var d=1; d<=total; d++){
+      var wd = dow(viewY, viewM, d);
+      if(wd===0) continue;                                   // 일요일 제외
+      if(CalendarStore.isHoliday(viewY, viewM+1, d)) continue; // 공휴일 제외
+      var c = CalScheduleStore.get(p.personId, viewY, viewM, d);
+      var isSat = (wd===6);
+      // 오전: 비었으면 근무
+      if(!c.am.code){ CalScheduleStore.setSlot(p.personId,viewY,viewM,d,'am',{code:'work',memo:'',auto:true}); filled++; }
+      // 오후: 토요일은 비움, 평일은 비었으면 근무
+      if(!isSat && !c.pm.code){ CalScheduleStore.setSlot(p.personId,viewY,viewM,d,'pm',{code:'work',memo:'',auto:true}); filled++; }
+    }
+  });
+  if(window.CalActiveRepo && CalActiveRepo.saveSchedule) CalActiveRepo.saveSchedule();
+  else if(window.calSaveToStore) calSaveToStore();
+  renderSheet();
+  _calOnly=true; try{ renderCalendar(); }finally{ _calOnly=false; }
+  if(typeof flashTool==='function') flashTool('자동배치 완료 ✓');
+  else alert('자동배치 완료 — '+filled+'개 슬롯 채움');
+});
+
+/* ── M3d-2: 날짜 편집 모달 (첫 데이터 쓰기) ──
+   동선: 칸 클릭 → 그 날 전체 명단 → 사람별 오전/오후 칩+메모 →
+        칩 클릭=즉시 저장소 반영+디스크 저장(write-then-verify) → 닫으면 달력 갱신.
+   칩: 한 번 클릭=적용, 같은 칩 재클릭=해제. 메모는 입력 후 blur/입력 시 저장.        */
+var _editY, _editM, _editD;   // 현재 편집 중 날짜
+
+function openEditor(d){
+  _editY = viewY; _editM = viewM; _editD = d;
+  var modal = document.getElementById('editModal');
+  document.getElementById('emTitle').textContent =
+      viewY + '년 ' + MONTH_KO[viewM] + ' ' + d + '일 (' + WD_KO[dow(viewY,viewM,d)] + ')';
+  var holi = CalendarStore.isHoliday(viewY, viewM+1, d);
+  document.getElementById('emHoli').textContent = holi ? ('· '+CalendarStore.name(viewY,viewM+1,d)) : '';
+  document.getElementById('emSaved').textContent = '';
+  buildEditorBody();
+  modal.classList.add('open');
+}
+function closeEditor(){
+  document.getElementById('editModal').classList.remove('open');
+  renderCalendar();   // 변경분 화면 반영
+}
+
+function buildEditorBody(){
+  var bodyEl = document.getElementById('emBody');
+  // M4e: 외래 소속만
+  var people = (window.PersonsStore && PersonsStore.listByDept) ? PersonsStore.listByDept(WARD_ID) : [];
+  people.sort(function(a,b){ return (a.name||'').localeCompare(b.name||'', 'ko'); });
+  if(people.length===0){
+    bodyEl.innerHTML = '<div style="padding:18px;color:var(--text2);font-size:15px">'
+      + '외래(비교대) 소속 인원이 없습니다. 직원관리에서 \'외래(비교대)\' 소속으로 지정하세요.</div>';
+    return;
+  }
+  var shifts = (window.CalShifts ? CalShifts.enabled() : []);
+  bodyEl.innerHTML = people.map(function(p){
+    var cell = CalScheduleStore.get(p.personId, _editY, _editM, _editD);
+    var vacTxt = (typeof p.vacTotal==='number') ? ('연차 '+p.vacTotal+'일') : '';
+    return '<div class="erow" data-pid="'+escapeHtml(p.personId)+'">'
+      +   '<div class="ename">'+escapeHtml(p.name||'?')
+      +     (vacTxt?'<span class="evac">'+vacTxt+'</span>':'')+'</div>'
+      +   '<div class="slots">'
+      +     slotLine('am','오전', cell.am, shifts)
+      +     slotLine('pm','오후', cell.pm, shifts)
+      +   '</div>'
+      + '</div>';
+  }).join('');
+
+  // 칩 클릭 바인딩
+  Array.prototype.forEach.call(bodyEl.querySelectorAll('.chip'), function(chip){
+    chip.addEventListener('click', function(){
+      var pid  = chip.closest('.erow').getAttribute('data-pid');
+      var slot = chip.getAttribute('data-slot');
+      var code = chip.getAttribute('data-code');
+      var cur  = CalScheduleStore.get(pid, _editY, _editM, _editD);
+      var curCode = cur[slot] ? cur[slot].code : '';
+      var newCode = (curCode===code) ? '' : code;   // 같은 칩 재클릭=해제
+      var memo = (cur[slot] && cur[slot].memo) ? cur[slot].memo : '';
+      CalScheduleStore.setSlot(pid, _editY, _editM, _editD, slot, {code:newCode, memo:memo});
+      persistAndFlash();
+      refreshSlotLine(chip.closest('.erow'), pid);
+    });
+  });
+  // 메모 입력 바인딩
+  Array.prototype.forEach.call(bodyEl.querySelectorAll('.chip-memo'), function(inp){
+    inp.addEventListener('change', function(){
+      var pid  = inp.closest('.erow').getAttribute('data-pid');
+      var slot = inp.getAttribute('data-slot');
+      var cur  = CalScheduleStore.get(pid, _editY, _editM, _editD);
+      var code = (cur[slot] && cur[slot].code) ? cur[slot].code : '';
+      CalScheduleStore.setSlot(pid, _editY, _editM, _editD, slot, {code:code, memo:inp.value});
+      persistAndFlash();
+    });
+  });
+}
+
+// 한 슬롯 줄(오전/오후): 칩들 + 메모
+function slotLine(slot, label, slotData, shifts){
+  var curCode = slotData ? slotData.code : '';
+  var memo = slotData ? (slotData.memo||'') : '';
+  var chips = shifts.map(function(s){
+    var on = (s.code===curCode);
+    var style = on ? (' style="background:'+s.bg+';color:'+s.color+';border-color:'+s.color+'"') : '';
+    return '<button type="button" class="chip'+(on?' on':'')+'" data-slot="'+slot
+      + '" data-code="'+s.code+'"'+style+'>'+escapeHtml(s.label)+'</button>';
+  }).join('');
+  return '<div class="slotline" data-slot="'+slot+'">'
+    +   '<span class="lbl">'+label+'</span>'+chips
+    +   '<input class="chip-memo" data-slot="'+slot+'" placeholder="메모(내시경·투석 등)" '
+    +     'value="'+escapeHtml(memo)+'">'
+    + '</div>';
+}
+// 한 사람 행의 칩 상태만 다시 그림 (메모 입력 포커스 유지 위해 줄 단위)
+function refreshSlotLine(erow, pid){
+  var cell = CalScheduleStore.get(pid, _editY, _editM, _editD);
+  var shifts = (window.CalShifts ? CalShifts.enabled() : []);
+  ['am','pm'].forEach(function(slot){
+    var line = erow.querySelector('.slotline[data-slot="'+slot+'"]');
+    if(!line) return;
+    var curCode = cell[slot] ? cell[slot].code : '';
+    Array.prototype.forEach.call(line.querySelectorAll('.chip'), function(chip){
+      var on = (chip.getAttribute('data-code')===curCode);
+      var s = CalShifts.get(chip.getAttribute('data-code'));
+      chip.className = 'chip'+(on?' on':'');
+      chip.setAttribute('style', on ? ('background:'+s.bg+';color:'+s.color+';border-color:'+s.color) : '');
+    });
+  });
+}
+// 저장 + "저장됨" 깜빡 표시
+var _saveTimer=null;
+function persistAndFlash(){
+  var err = (window.CalActiveRepo) ? CalActiveRepo.saveSchedule() : null;
+  var el = document.getElementById('emSaved');
+  if(err){ el.textContent='⚠ 저장 실패'; el.style.color='var(--warn)'; }
+  else { el.textContent='✓ 저장됨'; el.style.color='var(--green)';
+    clearTimeout(_saveTimer); _saveTimer=setTimeout(function(){ el.textContent=''; }, 1500); }
+}
+document.getElementById('emClose').addEventListener('click', closeEditor);
+document.getElementById('emDone').addEventListener('click', closeEditor);
+document.getElementById('editModal').addEventListener('click', function(e){
+  if(e.target===this) closeEditor();   // 바깥 클릭 닫기
+});
+
+/* M5b: 부서 유효성 가드 — dept 없거나 레지스트리에 없으면 안내 후 중단 */
 function _guardDept(){
-  var rec = (DOC_DEPT_ID && window.DeptRegistry) ? DeptRegistry.get(DOC_DEPT_ID) : null;
-  if(rec && rec.kind==='doctor') return true;
-  var msg = !DOC_DEPT_ID ? '부서가 지정되지 않았습니다.'
-          : (rec ? '의사과 부서가 아닙니다 ('+DOC_DEPT_ID+').' : '존재하지 않는 부서입니다 ('+DOC_DEPT_ID+').');
+  var rec = (WARD_ID && window.DeptRegistry) ? DeptRegistry.get(WARD_ID) : null;
+  if(rec) return true;
+  // 무효 진입 — 본문을 안내로 교체
+  var msg = !WARD_ID
+    ? '부서가 지정되지 않았습니다.'
+    : '존재하지 않는 부서입니다 ('+WARD_ID+').';
   document.body.innerHTML =
     '<div style="max-width:460px;margin:80px auto;padding:30px;text-align:center;'
-    + 'font-family:var(--sans);color:#1a2330">'
-    + '<div style="font-size:40px;margin-bottom:14px">🩺</div>'
+    + 'font-family:Pretendard,-apple-system,sans-serif;color:#1a2330">'
+    + '<div style="font-size:40px;margin-bottom:14px">🔄</div>'
     + '<h1 style="font-size:22px;color:#0C447C;margin:0 0 10px">'+msg+'</h1>'
     + '<p style="font-size:15px;color:#5B6B7F;line-height:1.6;margin-bottom:22px">'
-    + '의사과 스케줄은 대시보드에서 의사 부서를 선택해 들어가세요.</p>'
+    + '외래(비교대) 근무표는 대시보드에서 부서를 선택해 들어가세요. '
+    + '부서가 없으면 대시보드에서 새로 개설할 수 있습니다.</p>'
     + '<a href="../index.html" style="display:inline-block;padding:9px 20px;background:#1E6DBF;'
     + 'color:#fff;border-radius:9px;text-decoration:none;font-weight:600;font-size:16px">← 부서 선택으로</a>'
     + '</div>';
   return false;
 }
-
-// ── 의사 명단 (이 부서 소속) ─────────────────────────────────
-function _members(){
-  if(!window.PersonsStore) return [];
-  return PersonsStore.listByDept(DOC_DEPT_ID) || [];
+if(!_guardDept()){
+  throw new Error('[calendar] invalid dept — boot halted');  // 이후 부팅 코드 중단
 }
+/* 부서명 헤더 반영 */
+(function(){
+  var t=document.getElementById('pageTitle'); if(t&&WARD_NAME) t.textContent=WARD_NAME;
+  try{ document.title = (WARD_NAME||'비교대')+' 근무표'; }catch(_){}
+})();
 
-// ── 응급실 당직 성씨 (공유 당직표에서 읽기 전용) ──────────────
-//   ErRosterStore가 원천. 의사과는 성 한 글자만 읽어 헤더에 표시.
-function _erDutyInitial(y, m, d){   // m: 0-based (내부) → store는 1-based
-  if(!window.ErRosterStore) return '';
-  return ErRosterStore.initial(y, m+1, d);
-}
+/* 공휴일 룩업 테이블 준비: load()가 저장된 외부 갱신분 반영 + build() 수행.
+   (호출 안 하면 HOL/HOLN 이 빈 채로 남아 공휴일이 안 뜬다 — 듀티 본체도 시작 시 호출) */
+try { if(window.CalendarStore && CalendarStore.load) CalendarStore.load(); } catch(e){}
 
-// ── 날짜 유틸 ────────────────────────────────────────────────
-function _daysInMonth(y, m){ return new Date(y, m+1, 0).getDate(); }
+/* M3c: 저장된 비교대 스케줄 로드 */
+try { if(window.calLoadFromStore) calLoadFromStore(); } catch(e){}
 
-// ── 매트릭스 렌더 ────────────────────────────────────────────
-function renderTable(){
-  var host = document.getElementById('tableHost');
-  var members = _members();
-  if(!members.length){
-    host.innerHTML = '<div class="empty-note">이 부서에 배치된 의사가 없습니다.<br>'
-      + '<a href="../staff/index.html">직원관리</a>에서 의사를 ['+escapeHtml(DOC_DEPT_NAME)+'] 부서로 배치하세요.</div>';
-    return;
-  }
-  var ndays = _daysInMonth(viewY, viewM);
-  var DS = window.DocScheduleStore, DR = window.DocRender;
+/* M3d-3: 뷰 환경설정 로드 + 탭 상태 동기화 */
+try { if(window.CalViewPref) { CalViewPref.load(); syncViewTabs(); } } catch(e){}
 
-  var html = '<table class="docTable" id="docTable"><thead><tr>';
-  html += '<th class="namecol">의사 \\ 날짜</th>';
-  for(var d=1; d<=ndays; d++){
-    var dow = new Date(viewY, viewM, d).getDay();
-    var isHol = window.CalendarStore ? CalendarStore.isHoliday(viewY, viewM+1, d) : false;
-    var holName = (isHol && window.CalendarStore) ? CalendarStore.name(viewY, viewM+1, d) : '';
-    var er = _erDutyInitial(viewY, viewM, d);
-    var cls = 'dcol' + (dow===0?' sun':'') + (dow===6?' sat':'') + (isHol?' holiday':'');
-    html += '<th class="'+cls+'">'
-      + '<span class="dnum">'+d+'</span>'
-      + '<span class="dow">'+DOW_KO[dow]+'</span>'
-      + (holName ? '<span class="hol">'+escapeHtml(holName.slice(0,3))+'</span>' : '')
-      + (er ? '<span class="er">('+escapeHtml(er)+')</span>' : '')
-      + '</th>';
-  }
-  html += '</tr></thead><tbody>';
-
-  members.forEach(function(p){
-    var da = (p.deptAttrs && p.deptAttrs[DOC_DEPT_ID]) ? p.deptAttrs[DOC_DEPT_ID] : {};
-    var spec = da.specialty ? '<span class="spec">'+escapeHtml(da.specialty)+'</span>' : '';
-    html += '<tr><td class="namecell">'+escapeHtml(p.name||p.personId)+spec+'</td>';
-    for(var d=1; d<=ndays; d++){
-      var cell = DS.get(p.personId, viewY, viewM, d);
-      var v = DR.render(cell);
-      var isEmpty = !v.text && !cell.memo && !v.badges.length && !v.dim && !v.leftBar;
-      var inner = '';
-      if(v.leftBar) inner += '<span class="leftbar" style="background:'+v.leftBar+'"></span>';
-      inner += '<span class="cinner">';
-      if(cell.memo) inner += '<span class="cmemo" title="'+escapeHtml(cell.memo)+'">'+escapeHtml(cell.memo)+'</span>';
-      if(v.text)    inner += '<span class="ctext" style="color:'+v.textColor+'">'+v.text+'</span>';
-      if(v.badges.length){
-        inner += '<span class="cbadges">';
-        v.badges.forEach(function(b){
-          var st = DR.badgeStyle(b.kind);
-          inner += '<span class="cb" title="'+escapeHtml(b.label)+'" '
-            + 'style="background:'+st.bg+';color:'+st.fg+';border-color:'+st.bd+'">'+escapeHtml(b.short||b.label)+'</span>';
-        });
-        inner += '</span>';
-      }
-      inner += '</span>';
-      html += '<td class="cell'+(v.dim?' dim':'')+(isEmpty?' empty':'')+'" style="background:'+v.bg+'" '
-        + 'data-pid="'+escapeHtml(p.personId)+'" data-d="'+d+'">'+inner+'</td>';
-    }
-    html += '</tr>';
-  });
-  html += '</tbody></table>';
-  host.innerHTML = html;
-
-  // 셀 클릭 → 편집 (4단계 placeholder)
-  Array.prototype.forEach.call(host.querySelectorAll('td.cell'), function(td){
-    td.addEventListener('click', function(){
-      openCellEditor(td.getAttribute('data-pid'), parseInt(td.getAttribute('data-d'),10));
-    });
-  });
-}
-
-// ── 셀 편집 모달 ─────────────────────────────────────────────
-var _editPid = null, _editD = null;       // 편집 중인 셀
-var _draft = null;                         // 편집 중인 셀 임시본
-
-// 칩 on 색 (doc-render COLOR와 정렬). kind별 선택 시 배경색.
-function _chipOnColor(group, val){
-  var C = (window.DocRender && DocRender.COLOR) ? DocRender.COLOR : {};
-  if(group==='cmErCall'){ if(val==='D') return C.dCall||'#1A8C62'; if(val==='N') return C.nCall||'#5B3FA0'; return '#8a8a86'; }
-  if(group==='cmEndo')   return val==='1' ? '#3D7FC4' : '#8a8a86';
-  if(group==='cmConsult')return val==='1' ? '#C9A21A' : '#8a8a86';
-  if(group==='cmBlock')  return val==='1' ? (C.blockBar||'#C0392B') : '#8a8a86';
-  if(group==='cmStatus') return val==='휴진' ? (C.restText||'#9A6618') : '#1A8C62';
-  return '#8a8a86';
-}
-
-// 한 그룹의 칩 동기화 (선택값 표시 + on 색)
-function _syncChips(groupId, selVal){
-  var box = document.getElementById(groupId);
-  if(!box) return;
-  Array.prototype.forEach.call(box.querySelectorAll('.chip'), function(c){
-    var on = (c.getAttribute('data-v') === String(selVal));
-    c.className = 'chip' + (on ? ' on' : '');
-    c.style.background = on ? _chipOnColor(groupId, c.getAttribute('data-v')) : '';
-  });
-}
-
-function _syncAllChips(){
-  _syncChips('cmErCall', _draft.erCall || '');
-  _syncChips('cmEndo', _draft.endo ? '1' : '0');
-  _syncChips('cmConsult', _draft.consult ? '1' : '0');
-  _syncChips('cmBlock', _draft.block ? '1' : '0');
-  _syncChips('cmStatus', _draft.status || '근무');
-}
-
-function openCellEditor(pid, d){
-  _editPid = pid; _editD = d;
-  var cell = window.DocScheduleStore.get(pid, viewY, viewM, d);
-  _draft = {
-    erCall: cell.erCall || '', endo: !!cell.endo, consult: !!cell.consult,
-    block: !!cell.block, status: cell.status || '근무', memo: cell.memo || ''
-  };
-  // 의사 이름
-  var name = pid;
-  _members().forEach(function(p){ if(p.personId===pid) name = p.name||pid; });
-  document.getElementById('cmTitle').textContent = name;
-  document.getElementById('cmSub').textContent = (viewM+1)+'월 '+d+'일 ('+DOW_KO[new Date(viewY,viewM,d).getDay()]+')';
-  // 공휴일 표기
-  var holName = (window.CalendarStore && CalendarStore.isHoliday(viewY, viewM+1, d)) ? CalendarStore.name(viewY, viewM+1, d) : '';
-  document.getElementById('cmHoli').textContent = holName ? '· '+holName : '';
-  document.getElementById('cmMemo').value = _draft.memo;
-  _syncAllChips();
-  document.getElementById('cellModal').classList.add('open');
-}
-
-function _closeCellModal(){ document.getElementById('cellModal').classList.remove('open'); }
-
-function _saveCellModal(){
-  _draft.memo = (document.getElementById('cmMemo').value||'').trim();
-  window.DocScheduleStore.set(_editPid, viewY, viewM, _editD, _draft);
-  var err = window.DocActiveRepo.saveSchedule();
-  if(err){ alert('저장 실패: '+err.message); return; }
-  _closeCellModal();
-  renderTable();
-}
-
-function _clearCell(){
-  window.DocScheduleStore.del(_editPid, viewY, viewM, _editD);
-  var err = window.DocActiveRepo.saveSchedule();
-  if(err){ alert('저장 실패: '+err.message); return; }
-  _closeCellModal();
-  renderTable();
-}
-
-// 모달 칩/버튼 바인딩 (1회)
-function _bindCellModal(){
-  // 단일선택 칩 그룹
-  [['cmErCall','erCall',function(v){return v;}],
-   ['cmEndo','endo',function(v){return v==='1';}],
-   ['cmConsult','consult',function(v){return v==='1';}],
-   ['cmBlock','block',function(v){return v==='1';}],
-   ['cmStatus','status',function(v){return v;}]
-  ].forEach(function(spec){
-    var box = document.getElementById(spec[0]);
-    if(!box) return;
-    Array.prototype.forEach.call(box.querySelectorAll('.chip'), function(c){
-      c.addEventListener('click', function(){
-        _draft[spec[1]] = spec[2](c.getAttribute('data-v'));
-        _syncChips(spec[0], c.getAttribute('data-v'));
-      });
-    });
-  });
-  document.getElementById('cmClose').addEventListener('click', _closeCellModal);
-  document.getElementById('cmSave').addEventListener('click', _saveCellModal);
-  document.getElementById('cmClear').addEventListener('click', _clearCell);
-  document.getElementById('cellModal').addEventListener('click', function(e){ if(e.target===this) _closeCellModal(); });
-}
-
-// ── 응급실 당직표 (공유 원천) ─────────────────────────────────
-// 전체 의사 풀: 모든 doctor_N 부서 소속을 합친 명단 (여러 진료과가 공유하므로)
-function _allDoctors(){
-  if(!window.PersonsStore) return [];
-  var out = [], seen = {};
-  (PersonsStore.list() || []).forEach(function(p){
-    var m = p.membership || '';
-    if(/^doctor_\d+$/.test(m) && !seen[p.personId]){
-      seen[p.personId] = true;
-      // 소속 부서명도 곁들여 동명이인 구분
-      var deptNm = (window.DeptRegistry && DeptRegistry.get(m)) ? DeptRegistry.get(m).name : m;
-      out.push({ personId:p.personId, name:p.name||p.personId, dept:deptNm });
+// M5d: staff에서 소속만 지정된 인원(deptAttrs 미초기화) 완전 배치(idempotent)
+(function(){
+  if(!window.OutpatientAdapter || !window.PersonsStore) return;
+  PersonsStore.listByDept(WARD_ID).forEach(function(p){
+    var da = p.deptAttrs && p.deptAttrs[WARD_ID];
+    if(!da || da.id===undefined || da.role===undefined || da.color===undefined){
+      OutpatientAdapter.placeIn(WARD_ID, p.personId);
     }
   });
-  out.sort(function(a,b){ return (a.name||'').localeCompare(b.name||'','ko'); });
-  return out;
-}
+})();
+renderCalendar();
+renderPalette();
+if(typeof applyFixedWeekday==='function') applyFixedWeekday();
 
-function openErRoster(){
-  var docs = _allDoctors();
-  document.getElementById('erSub').textContent = viewY + '년 ' + MONTH_KO[viewM];
-  var ndays = _daysInMonth(viewY, viewM);
-  var optsBase = '<option value="">— 미지정 —</option>'
-    + docs.map(function(dc){
-        return '<option value="'+escapeHtml(dc.personId)+'">'+escapeHtml(dc.name)+' ('+escapeHtml(dc.dept)+')</option>';
-      }).join('');
-  var html = '';
-  for(var d=1; d<=ndays; d++){
-    var dow = new Date(viewY, viewM, d).getDay();
-    var isHol = window.CalendarStore ? CalendarStore.isHoliday(viewY, viewM+1, d) : false;
-    var cur = window.ErRosterStore ? ErRosterStore.get(viewY, viewM+1, d) : '';
-    var cls = 'erday' + (dow===0||isHol?' sun':'') + (dow===6?' sat':'');
-    // 현재값 선택 반영
-    var opts = optsBase.replace('value="'+cur+'"', 'value="'+cur+'" selected');
-    html += '<div class="errow">'
-      + '<span class="'+cls+'">'+d+'일<span class="erdow">'+DOW_KO[dow]+'</span></span>'
-      + '<select data-d="'+d+'">'+opts+'</select>'
-      + '</div>';
-  }
-  if(!docs.length){
-    html = '<p style="padding:18px;color:var(--text2);text-align:center;">'
-      + '등록된 의사가 없습니다. 직원관리에서 의사를 의사과로 배치하세요.</p>' + html;
-  }
-  document.getElementById('erList').innerHTML = html;
-  // select 변경 → 즉시 저장 (원천이므로 실시간 반영)
-  Array.prototype.forEach.call(document.getElementById('erList').querySelectorAll('select'), function(sel){
-    sel.addEventListener('change', function(){
-      var d = parseInt(sel.getAttribute('data-d'),10);
-      ErRosterStore.set(viewY, viewM+1, d, sel.value || '');
-    });
-  });
-  document.getElementById('erModal').classList.add('open');
+// 고정 묶음(월이동·붓) 높이를 측정해 요일헤더 sticky 위치를 맞춘다.
+function _syncCalTopHeight(){
+  var t=document.getElementById('calTopSticky');
+  if(t){ document.documentElement.style.setProperty('--caltop-h', t.offsetHeight + 'px'); }
 }
-function _closeErRoster(){
-  document.getElementById('erModal').classList.remove('open');
-  renderTable();   // 헤더 (성) 표시 갱신
-}
-function _bindErModal(){
-  document.getElementById('btnErRoster').addEventListener('click', openErRoster);
-  document.getElementById('erClose').addEventListener('click', _closeErRoster);
-  document.getElementById('erDone').addEventListener('click', _closeErRoster);
-  document.getElementById('erModal').addEventListener('click', function(e){ if(e.target===this) _closeErRoster(); });
-}
-
-// ── 월 이동 ──────────────────────────────────────────────────
-function _updateMonthLabel(){
-  document.getElementById('monthLabel').textContent = viewY + '년 ' + MONTH_KO[viewM];
-}
-function gotoMonth(delta){
-  viewM += delta;
-  if(viewM < 0){ viewM = 11; viewY--; }
-  else if(viewM > 11){ viewM = 0; viewY++; }
-  _updateMonthLabel();
-  renderTable();
-}
-
-// ── 인쇄 (외래 _fitPrintScale 패턴 재사용) ────────────────────
-function _fitPrintScale(){
-  try{
-    var tbl = document.getElementById('docTable');
-    var title = document.getElementById('printTitle');
-    if(!tbl){ document.documentElement.style.setProperty('--print-scale','1'); return; }
-    var MM = 3.7795;
-    var availW = (297 - 12) * MM;   // ≈1077px
-    var availH = (210 - 12) * MM;   // ≈748px
-    var contentW = tbl.scrollWidth;
-    var contentH = tbl.scrollHeight + (title ? title.offsetHeight + 8 : 0);
-    if(contentW<=0 || contentH<=0){ document.documentElement.style.setProperty('--print-scale','1'); return; }
-    var scale = Math.min(availW/contentW, availH/contentH, 1);
-    scale = Math.max(scale, 0.3);
-    document.documentElement.style.setProperty('--print-scale', scale.toFixed(3));
-  }catch(e){ document.documentElement.style.setProperty('--print-scale','1'); }
-}
-function printSchedule(){
-  var t = document.getElementById('printTitle');
-  if(t) t.textContent = DOC_DEPT_NAME + ' — ' + viewY + '년 ' + MONTH_KO[viewM] + ' 의사 스케줄';
-  _fitPrintScale();
-  window.print();
-}
-
-// ── 부팅 ─────────────────────────────────────────────────────
-function boot(){
-  if(!_guardDept()) return;
-  document.getElementById('deptName').textContent = DOC_DEPT_NAME || '의사과';
-  document.title = (DOC_DEPT_NAME||'의사과') + ' 스케줄';
-  if(window.CalendarStore && CalendarStore.load) CalendarStore.load();
-  if(window.docLoadFromStore) docLoadFromStore();
-  _updateMonthLabel();
-  renderTable();
-  _bindCellModal();
-  _bindErModal();
-  document.getElementById('prevM').addEventListener('click', function(){ gotoMonth(-1); });
-  document.getElementById('nextM').addEventListener('click', function(){ gotoMonth(1); });
-  document.getElementById('btnPrint').addEventListener('click', printSchedule);
-}
-if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot);
-else boot();
+window.addEventListener('load', _syncCalTopHeight);
+window.addEventListener('resize', _syncCalTopHeight);
+setTimeout(_syncCalTopHeight, 100);
+</script>
+<script>
+window.UGUIDE_ITEMS = [{
+  icon:'📖', title:'외래 근무표 사용 가이드',
+  html:'<p><b>이 부서 인원은?</b> 직원관리에서 이 부서로 배치한 간호사가 왼쪽 명단에 나옵니다. 사람 추가·삭제는 직원관리에서.</p>'
+    +'<p><b>근무 칠하기</b> — 위 “붓”에서 종류(근무·연차·반차·월차·휴가·경조·OFF)를 고른 뒤 달력 칸의 오전/오후를 클릭. 숫자키 1~6·0으로 붓 변경, Backspace 지우기, Esc 붓 해제.</p>'
+    +'<p><b>자동배치</b> — “✨ 자동배치”는 요일 고정근무를 먼저 반영하고 평일 오전·오후, 토요일 오전만 채웁니다(일·공휴일 제외). 직접 입력한 칸은 보존.</p>'
+    +'<p><b>요일 고정·색</b> — 간호사 카드를 펼쳐 요일 고정근무·색 지정. 색은 달력 이름에 반영. 이달 생일자는 🎂.</p>'
+    +'<p><b>보기·폭</b> — 달력형/명단형 전환, 우측 “＋／－”로 표 폭 조절.</p>'
+}];
 </script>
 <script src="../shared/uguide.js"></script>
 <script src="../shared/version.js"></script>
