@@ -83,9 +83,21 @@
     if(changed) _save();
   }
 
+  // ── 응급실 부서 지정 ──────────────────────────────────────────
+  // ER 당직 후보 = 이 부서(kind='doctor') 소속 의사. 부서 이름은 바뀔 수 있으므로 id로 보관.
+  var DEPT_KEY = 'dv6_er_dept';
+  function getDeptId(){
+    try{ return localStorage.getItem(DEPT_KEY) || ''; }catch(_){ return ''; }
+  }
+  function setDeptId(deptId){
+    try{ localStorage.setItem(DEPT_KEY, deptId||''); return true; }catch(_){ return false; }
+  }
+
   g.ErRosterStore = {
     get: get, set: set, name: name, initial: initial,
-    monthMap: monthMap, removePerson: removePerson, STORE_KEY: STORE_KEY
+    monthMap: monthMap, removePerson: removePerson,
+    getDeptId: getDeptId, setDeptId: setDeptId,
+    STORE_KEY: STORE_KEY, DEPT_KEY: DEPT_KEY
   };
   g.__ERROSTERSTORE_LOADED__ = true;
 

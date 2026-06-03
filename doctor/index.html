@@ -9,25 +9,38 @@
 <link rel="stylesheet" href="../shared/uguide.css">
 <style>
   /* ── 의사 6속성 셀 전용 (달력형·명단형 공유) ── */
-  /* 달력 칸: 응급실 당직 + 의사 칩 목록 */
+  /* 달력 칸: 응급실 당직 + 의사 행(이름|오전|오후) */
   .ercall{font-size:11px;font-weight:700;color:var(--primary-d);background:#eaf3fc;
           border-radius:5px;padding:1px 5px;margin:2px 0;display:inline-block;}
   .docwrap{display:flex;flex-direction:column;gap:2px;margin-top:2px;}
-  .docchip{display:flex;align-items:center;flex-wrap:wrap;gap:3px;font-size:12px;
-           border-radius:4px;padding:1px 4px;line-height:1.5;cursor:pointer;}
-  .docchip:hover{outline:1.5px solid var(--primary);}
-  .docchip.dim{opacity:.55;}
-  .docchip .dname{font-weight:600;}
-  .docchip .ddn{font-weight:800;}
-  .docchip .dmemo{font-size:10px;color:var(--text3);}
+  .docrow{display:grid;grid-template-columns:minmax(34px,auto) 1fr 1fr;gap:2px;align-items:stretch;font-size:12px;}
+  .docrow .dname{font-weight:600;display:flex;align-items:center;padding:0 2px;}
+  .docslot{display:flex;align-items:center;flex-wrap:wrap;gap:2px;min-height:18px;
+           border-radius:3px;padding:1px 3px;line-height:1.4;cursor:pointer;border:1px solid var(--bd);}
+  .docslot:hover{outline:1.5px solid var(--primary);}
+  .docslot.dim{opacity:.55;}
+  .docslot .slotempty{color:var(--bd2);}
+  .docrow .ddn{font-weight:800;}
+  .docrow .dmemo{font-size:10px;color:var(--text3);}
   .db{font-size:9px;font-weight:700;line-height:1.3;min-width:13px;text-align:center;
       padding:0 2px;border-radius:3px;border:1px solid;}
-  /* 명단형 셀: 6속성 배지 */
-  td.sheetcell{cursor:pointer;text-align:center;vertical-align:middle;min-width:38px;height:34px;}
+  /* 명단형 셀: 오전/오후 위·아래 작게 */
+  td.sheetcell{cursor:pointer;text-align:center;vertical-align:middle;min-width:40px;height:38px;}
   td.sheetcell:hover{outline:2px solid var(--primary);outline-offset:-2px;}
   td.sheetcell.dim{opacity:.55;}
-  .sheetbadges{display:inline-flex;align-items:center;gap:2px;flex-wrap:wrap;justify-content:center;}
-  .sheetbadges .ddn{font-size:13px;font-weight:800;}
+  .sheetbadges{display:inline-flex;flex-direction:column;align-items:center;gap:0;line-height:1.2;}
+  .sheetbadges .sheetdiv{width:70%;height:1px;background:var(--bd);margin:1px 0;}
+  .sheetbadges .slotempty{color:var(--bd2);font-size:10px;}
+  .sheetbadges .ddn{font-size:12px;font-weight:800;}
+  /* 모달: 오전/오후 슬롯 탭 */
+  .slottabs{display:flex;gap:0;border-bottom:1px solid var(--line);margin:0 18px;}
+  .slottab{flex:1;border:0;background:none;font-family:inherit;font-size:15px;font-weight:700;
+           color:var(--text3);padding:10px 0;cursor:pointer;border-bottom:2.5px solid transparent;}
+  .slottab.on{color:var(--primary-d);border-bottom-color:var(--primary);}
+  .slottab kbd{font-size:10px;}
+  kbd{display:inline-block;font-family:var(--mono,monospace);font-size:10px;line-height:1.4;
+      background:var(--bg2);border:1px solid var(--bd2);border-radius:3px;padding:0 4px;margin:0 1px;color:var(--text2);}
+  .cmhint{font-size:11px;color:var(--text3);padding:10px 18px 2px;line-height:1.8;}
   .sheetbadges .dmemo{font-size:8px;color:var(--text3);}
   td.sheetcell .empty{color:var(--text3);}
   /* 셀 편집 모달 행 */
@@ -160,40 +173,45 @@
         <span class="mh-holi" id="cmHoli"></span>
         <button class="x" id="cmClose" title="닫기">×</button>
       </div>
+      <div id="cmSlotTabs" class="slottabs">
+        <button type="button" class="slottab" data-slot="am">오전 <kbd>←</kbd></button>
+        <button type="button" class="slottab" data-slot="pm">오후 <kbd>→</kbd></button>
+      </div>
       <div class="modal-body">
         <div class="erow"><span class="elbl">응급콜</span>
           <div class="chips" id="cmErCall">
             <button type="button" class="chip" data-v="">없음</button>
-            <button type="button" class="chip" data-v="D">D 주간콜</button>
-            <button type="button" class="chip" data-v="N">N 야간콜</button>
+            <button type="button" class="chip" data-v="D">D 주간콜 <kbd>D</kbd></button>
+            <button type="button" class="chip" data-v="N">N 야간콜 <kbd>N</kbd></button>
           </div></div>
         <div class="erow"><span class="elbl">시술</span>
           <div class="chips" id="cmEndo">
             <button type="button" class="chip" data-v="0">없음</button>
-            <button type="button" class="chip" data-v="1">내시경</button>
+            <button type="button" class="chip" data-v="1">내시경 <kbd>E</kbd></button>
           </div></div>
         <div class="erow"><span class="elbl">협진</span>
           <div class="chips" id="cmConsult">
             <button type="button" class="chip" data-v="0">없음</button>
-            <button type="button" class="chip" data-v="1">협진당직</button>
+            <button type="button" class="chip" data-v="1">협진당직 <kbd>C</kbd></button>
           </div></div>
         <div class="erow"><span class="elbl">금지</span>
           <div class="chips" id="cmBlock">
             <button type="button" class="chip" data-v="0">해제</button>
-            <button type="button" class="chip" data-v="1">(X) 콜·협진 금지</button>
+            <button type="button" class="chip" data-v="1">(X) 콜·협진 금지 <kbd>X</kbd></button>
           </div></div>
         <div class="erow"><span class="elbl">상태</span>
           <div class="chips" id="cmStatus">
             <button type="button" class="chip" data-v="근무">근무</button>
-            <button type="button" class="chip" data-v="휴진">휴진</button>
+            <button type="button" class="chip" data-v="휴진">휴진 <kbd>R</kbd></button>
           </div></div>
         <div class="erow"><span class="elbl">메모</span>
           <div class="chips">
             <input class="chip-memo" id="cmMemo" type="text" maxlength="20" placeholder="투석·외래 등 자유 입력">
           </div></div>
+        <div class="cmhint">단축키: <kbd>D</kbd><kbd>N</kbd> 응급콜 · <kbd>E</kbd> 내시경 · <kbd>C</kbd> 협진 · <kbd>X</kbd> 금지 · <kbd>R</kbd> 휴진 · <kbd>←</kbd><kbd>→</kbd> 오전/오후 · <kbd>Enter</kbd> 저장</div>
       </div>
       <div class="modal-foot">
-        <button class="clearbtn" id="cmClear" type="button">전체 비우기</button>
+        <button class="clearbtn" id="cmClear" type="button">이 슬롯 비우기</button>
         <button class="savebtn" id="cmSave" type="button">저장</button>
       </div>
     </div>
@@ -630,22 +648,35 @@ function renderCalendar(){
   hint.textContent = total + '일';
   if(!_calOnly) renderSheet();   // 명단형도 같은 달로 동기화
 
-  // 달력 셀 클릭 → 그날 그 의사 6속성 편집 모달
-  Array.prototype.forEach.call(body.querySelectorAll('.docchip'), function(ch){
-    ch.style.cursor='pointer';
-    ch.addEventListener('click', function(ev){
+  // 달력 셀 슬롯 클릭 → 그 슬롯(오전/오후) 편집 모달
+  Array.prototype.forEach.call(body.querySelectorAll('.docslot'), function(sc){
+    sc.style.cursor='pointer';
+    sc.addEventListener('click', function(ev){
       ev.stopPropagation();
-      var pid=ch.getAttribute('data-pid');
-      var d=parseInt(ch.getAttribute('data-day'),10);
-      if(pid&&d) openCellEditor(pid, d);
+      var pid=sc.getAttribute('data-pid');
+      var d=parseInt(sc.getAttribute('data-day'),10);
+      var slot=sc.getAttribute('data-slot');
+      if(pid&&d) openCellEditor(pid, d, slot);
     });
   });
 
-  // 한 날짜 칸의 내용: 응급실 당직(읽기) + 그날 근무/속성 있는 의사 목록
+  // 한 슬롯의 시각 표현 (배지·글자·메모) — 작게
+  function _slotInner(slotData){
+    var v = DocRender.render(slotData);
+    if(DocScheduleStore.slotEmpty(slotData)) return '<span class="slotempty">·</span>';
+    var out='';
+    if(v.text) out += '<span class="ddn" style="color:'+v.textColor+'">'+v.text+'</span>';
+    v.badges.forEach(function(b){
+      var st=DocRender.badgeStyle(b.kind);
+      out += '<span class="db" style="background:'+st.bg+';color:'+st.fg+';border-color:'+st.bd+'">'+escapeHtml(b.short||b.label)+'</span>';
+    });
+    if(slotData.memo) out += '<span class="dmemo">'+escapeHtml(slotData.memo)+'</span>';
+    return out;
+  }
+  // 한 날짜 칸: 응급실 당직(읽기) + 그날 입력 있는 의사 행(이름|오전|오후)
   function renderDayStaff(d){
     if(!window.DocScheduleStore) return '';
     var members = (window.PersonsStore ? PersonsStore.listByDept(WARD_ID) : []);
-    // 응급실 당직 성씨 (공유 당직표에서 읽기 전용)
     var erName = (window.ErRosterStore) ? ErRosterStore.name(viewY, viewM+1, d) : '';
     var erHtml = erName
       ? '<div class="ercall" title="응급실 당직: '+escapeHtml(erName)+'">🚑 '+escapeHtml(erName)+'</div>'
@@ -654,22 +685,15 @@ function renderCalendar(){
     var rows = members.map(function(p){
       var pid=p.personId;
       var cell = DocScheduleStore.get(pid, viewY, viewM, d);
-      var v = DocRender.render(cell);
-      var isEmpty = !v.text && !cell.memo && !v.badges.length && !v.dim && !v.leftBar;
-      if(isEmpty) return '';   // 그날 입력 없는 의사는 칸에 안 보임
-      var badges = v.badges.map(function(b){
-        var st = DocRender.badgeStyle(b.kind);
-        return '<span class="db" style="background:'+st.bg+';color:'+st.fg+';border-color:'+st.bd+'">'+escapeHtml(b.short||b.label)+'</span>';
-      }).join('');
-      var dn = v.text ? '<span class="ddn" style="color:'+v.textColor+'">'+v.text+'</span>' : '';
-      var memo = cell.memo ? '<span class="dmemo">'+escapeHtml(cell.memo)+'</span>' : '';
-      var lb = v.leftBar ? 'border-left:3px solid '+v.leftBar+';padding-left:4px;' : '';
-      return '<div class="docchip'+(v.dim?' dim':'')+'" data-pid="'+pid+'" data-day="'+d+'" '
-        +    'style="background:'+v.bg+';'+lb+'">'
+      var amV = DocRender.render(cell.am), pmV = DocRender.render(cell.pm);
+      return '<div class="docrow">'
         +    '<span class="dname">'+escapeHtml(nameOf[pid]||p.name||'?')+'</span>'
-        +    dn + badges + memo
+        +    '<span class="docslot'+(amV.dim?' dim':'')+'" data-pid="'+pid+'" data-day="'+d+'" data-slot="am" '
+        +      'style="background:'+amV.bg+';'+(amV.leftBar?'box-shadow:inset 3px 0 0 '+amV.leftBar+';':'')+'">'+_slotInner(cell.am)+'</span>'
+        +    '<span class="docslot'+(pmV.dim?' dim':'')+'" data-pid="'+pid+'" data-day="'+d+'" data-slot="pm" '
+        +      'style="background:'+pmV.bg+';'+(pmV.leftBar?'box-shadow:inset 3px 0 0 '+pmV.leftBar+';':'')+'">'+_slotInner(cell.pm)+'</span>'
         +  '</div>';
-    }).filter(Boolean);
+    });
     return erHtml + (rows.length ? '<div class="docwrap">'+rows.join('')+'</div>' : '');
   }
 }
@@ -720,11 +744,13 @@ function renderSheet(){
         var holi2 = CalendarStore.isHoliday(viewY, viewM+1, d2);
         var ccls = holi2 ? 'holi' : (wd2===6 ? 'satd' : (wd2===0 ? 'sund' : ''));
         var cell = (window.DocScheduleStore) ? DocScheduleStore.get(pid, viewY, viewM, d2) : null;
-        var v = cell ? DocRender.render(cell) : null;
+        // 명단형은 보조 뷰 — am 슬롯 기준 색/배지로 간단 표시(상세는 달력 모달에서)
+        var amSlot = cell ? cell.am : null;
+        var v = amSlot ? DocRender.render(amSlot) : null;
         tbody += '<td class="daycell sheetcell '+ccls+(v&&v.dim?' dim':'')+'" '
               +  'data-pid="'+pid+'" data-day="'+d2+'" '
               +  (v?'style="background:'+v.bg+';'+(v.leftBar?'box-shadow:inset 3px 0 0 '+v.leftBar+';':'')+'"':'')+'>'
-              +  _docSheetBadge(cell, v) + '</td>';
+              +  _docSheetBadge(cell) + '</td>';
       }
       tbody += '</tr>';
     });
@@ -741,19 +767,23 @@ function renderSheet(){
   });
 }
 
-// 명단형 한 칸의 6속성 배지 (작게)
-function _docSheetBadge(cell, v){
-  if(!cell || !v) return '<span class="empty">·</span>';
-  var isEmpty = !v.text && !cell.memo && !v.badges.length && !v.dim && !v.leftBar;
-  if(isEmpty) return '<span class="empty">·</span>';
-  var out = '';
-  if(v.text) out += '<span class="ddn" style="color:'+v.textColor+'">'+v.text+'</span>';
-  v.badges.forEach(function(b){
-    var st = DocRender.badgeStyle(b.kind);
-    out += '<span class="db" style="background:'+st.bg+';color:'+st.fg+';border-color:'+st.bd+'">'+escapeHtml(b.short||b.label)+'</span>';
-  });
-  if(cell.memo) out += '<span class="dmemo">'+escapeHtml(cell.memo)+'</span>';
-  return '<span class="sheetbadges">'+out+'</span>';
+// 명단형 한 칸: 오전/오후 슬롯을 위/아래로 작게 (보조 뷰)
+function _docSheetBadge(cell){
+  if(!cell) return '<span class="empty">·</span>';
+  function one(slot){
+    if(DocScheduleStore.slotEmpty(slot)) return '';
+    var v=DocRender.render(slot), out='';
+    if(v.text) out += '<span class="ddn" style="color:'+v.textColor+'">'+v.text+'</span>';
+    v.badges.forEach(function(b){
+      var st=DocRender.badgeStyle(b.kind);
+      out += '<span class="db" style="background:'+st.bg+';color:'+st.fg+';border-color:'+st.bd+'">'+escapeHtml(b.short||b.label)+'</span>';
+    });
+    if(slot.memo) out += '<span class="dmemo">'+escapeHtml(slot.memo)+'</span>';
+    return out;
+  }
+  var am=one(cell.am), pm=one(cell.pm);
+  if(!am && !pm) return '<span class="empty">·</span>';
+  return '<span class="sheetbadges">'+(am||'<span class="slotempty">·</span>')+'<span class="sheetdiv"></span>'+(pm||'<span class="slotempty">·</span>')+'</span>';
 }
 
 
@@ -889,8 +919,8 @@ function _fitPrintScale(){
   }catch(e){ document.documentElement.style.setProperty('--print-scale','1'); }
 }
 
-/* ── 셀 편집 모달 (의사 1명 × 하루, 6속성) ── */
-var _editPid=null, _editD=null, _draft=null;
+/* ── 셀 편집 모달 (의사 1명 × 하루 × 슬롯[오전/오후], 6속성) ── */
+var _editPid=null, _editD=null, _editSlot='am', _draft=null;
 
 function _chipOnColor(group, val){
   var C=(window.DocRender&&DocRender.COLOR)?DocRender.COLOR:{};
@@ -916,13 +946,26 @@ function _syncAllChips(){
   _syncChips('cmConsult', _draft.consult?'1':'0');
   _syncChips('cmBlock', _draft.block?'1':'0');
   _syncChips('cmStatus', _draft.status||'근무');
+  // 슬롯 탭 표시
+  Array.prototype.forEach.call(document.querySelectorAll('#cmSlotTabs .slottab'), function(t){
+    t.className='slottab'+(t.getAttribute('data-slot')===_editSlot?' on':'');
+  });
+  var mm=document.getElementById('cmMemo'); if(mm) mm.value=_draft.memo||'';
 }
-function openCellEditor(pid, d){
+// 현재 모달 입력을 _draft에서 슬롯으로 저장(전환·저장 공통)
+function _commitDraftToStore(){
+  _draft.memo=(document.getElementById('cmMemo').value||'').trim();
+  window.DocScheduleStore.setSlot(_editPid, viewY, viewM, _editD, _editSlot, _draft);
+}
+function _loadDraftFromSlot(){
+  var s=window.DocScheduleStore.getSlot(_editPid, viewY, viewM, _editD, _editSlot);
+  _draft={ erCall:s.erCall||'', endo:!!s.endo, consult:!!s.consult,
+           block:!!s.block, status:s.status||'근무', memo:s.memo||'' };
+}
+function openCellEditor(pid, d, slot){
   if(!pid||!d) return;
-  _editPid=pid; _editD=d;
-  var cell=window.DocScheduleStore.get(pid, viewY, viewM, d);
-  _draft={ erCall:cell.erCall||'', endo:!!cell.endo, consult:!!cell.consult,
-           block:!!cell.block, status:cell.status||'근무', memo:cell.memo||'' };
+  _editPid=pid; _editD=d; _editSlot=(slot==='pm')?'pm':'am';
+  _loadDraftFromSlot();
   var name=pid;
   (window.PersonsStore?PersonsStore.listByDept(WARD_ID):[]).forEach(function(p){ if(p.personId===pid) name=p.name||pid; });
   document.getElementById('cmTitle').textContent=name;
@@ -930,22 +973,46 @@ function openCellEditor(pid, d){
   var holName=(window.CalendarStore&&CalendarStore.isHoliday(viewY,viewM+1,d))?CalendarStore.name(viewY,viewM+1,d):'';
   var er=(window.ErRosterStore)?ErRosterStore.name(viewY,viewM+1,d):'';
   document.getElementById('cmHoli').textContent=(holName?'· '+holName:'')+(er?'  🚑'+er:'');
-  document.getElementById('cmMemo').value=_draft.memo;
   _syncAllChips();
   document.getElementById('cellModal').classList.add('open');
 }
+// 모달 안에서 오전↔오후 전환 (현재 입력 저장 후 다른 슬롯 로드)
+function _switchSlot(slot){
+  if(slot===_editSlot) return;
+  _commitDraftToStore();
+  _editSlot=slot;
+  _loadDraftFromSlot();
+  _syncAllChips();
+}
 function _closeCellModal(){ document.getElementById('cellModal').classList.remove('open'); }
 function _saveCellModal(){
-  _draft.memo=(document.getElementById('cmMemo').value||'').trim();
-  window.DocScheduleStore.set(_editPid, viewY, viewM, _editD, _draft);
+  _commitDraftToStore();
   var err=window.DocActiveRepo.saveSchedule();
   if(err){ alert('저장 실패: '+err.message); return; }
   _closeCellModal(); renderCalendar();
 }
 function _clearCell(){
-  window.DocScheduleStore.del(_editPid, viewY, viewM, _editD);
+  // 현재 슬롯만 비움
+  window.DocScheduleStore.setSlot(_editPid, viewY, viewM, _editD, _editSlot, {});
+  _loadDraftFromSlot(); _syncAllChips();
   window.DocActiveRepo.saveSchedule();
-  _closeCellModal(); renderCalendar();
+  renderCalendar();
+}
+// 단축키: D/N 응급콜, E 내시경, C 협진, X 금지, R 휴진, ←→ 슬롯전환, Enter 저장, Esc 닫기
+function _cellModalKey(e){
+  if(!document.getElementById('cellModal').classList.contains('open')) return;
+  if(e.target && e.target.id==='cmMemo'){ if(e.key==='Enter'){ _saveCellModal(); } return; }
+  var k=e.key.toLowerCase();
+  if(k==='d'){ _draft.erCall=(_draft.erCall==='D'?'':'D'); _syncChips('cmErCall',_draft.erCall); e.preventDefault(); }
+  else if(k==='n'){ _draft.erCall=(_draft.erCall==='N'?'':'N'); _syncChips('cmErCall',_draft.erCall); e.preventDefault(); }
+  else if(k==='e'){ _draft.endo=!_draft.endo; _syncChips('cmEndo',_draft.endo?'1':'0'); e.preventDefault(); }
+  else if(k==='c'){ _draft.consult=!_draft.consult; _syncChips('cmConsult',_draft.consult?'1':'0'); e.preventDefault(); }
+  else if(k==='x'){ _draft.block=!_draft.block; _syncChips('cmBlock',_draft.block?'1':'0'); e.preventDefault(); }
+  else if(k==='r'){ _draft.status=(_draft.status==='휴진'?'근무':'휴진'); _syncChips('cmStatus',_draft.status); e.preventDefault(); }
+  else if(e.key==='ArrowLeft'){ _switchSlot('am'); e.preventDefault(); }
+  else if(e.key==='ArrowRight'){ _switchSlot('pm'); e.preventDefault(); }
+  else if(e.key==='Enter'){ _saveCellModal(); e.preventDefault(); }
+  else if(e.key==='Escape'){ _closeCellModal(); e.preventDefault(); }
 }
 function _bindCellModal(){
   [['cmErCall','erCall',function(v){return v;}],
@@ -962,10 +1029,15 @@ function _bindCellModal(){
       });
     });
   });
+  // 슬롯 탭
+  Array.prototype.forEach.call(document.querySelectorAll('#cmSlotTabs .slottab'), function(t){
+    t.addEventListener('click', function(){ _switchSlot(t.getAttribute('data-slot')); });
+  });
   document.getElementById('cmClose').addEventListener('click', _closeCellModal);
   document.getElementById('cmSave').addEventListener('click', _saveCellModal);
   document.getElementById('cmClear').addEventListener('click', _clearCell);
   document.getElementById('cellModal').addEventListener('click', function(e){ if(e.target===this) _closeCellModal(); });
+  document.addEventListener('keydown', _cellModalKey);
 }
 
 /* 부서 유효성 가드 — doctor kind 부서만 허용 */
