@@ -239,27 +239,22 @@
     .wrap{ max-width:none !important; width:100% !important; padding:0 !important; margin:0 !important; }
     .layout{ display:block !important; }
     .main-col{ width:100% !important; }
+    /* 한 장에 맞추기: JS가 측정한 --print-scale 로 달력 카드 통째 축소 */
+    .main-col > .card{ transform: scale(var(--print-scale, 1)); transform-origin: top left;
+       width: calc(100% / var(--print-scale, 1)); }
     .card{ border:0 !important; box-shadow:none !important; padding:0 !important; margin:0 !important; }
     .cal-top-sticky{ position:static !important; box-shadow:none !important; padding:0 !important; margin:0 0 4px !important; }
     .cal-head{ display:none !important; }
     #printTitle{ display:block !important; font-size:14px; font-weight:800; color:#111; margin:0 0 5px; text-align:center; }
     /* 색 보존 */
     *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
-    /* 달력 그리드 — 한 페이지에 꽉 차게 */
-    table.cal{ width:100% !important; table-layout:fixed; font-size:8.5px !important; }
+    /* 달력 그리드 — 화면과 동일 크기로 두고 transform:scale 로만 축소(측정=출력 일치) */
     table.cal th{ position:static !important; box-shadow:none !important; border:0.5pt solid #888 !important;
-       background:#e9eef5 !important; color:#111 !important; padding:2px 0 !important; font-size:9px !important; }
+       background:#e9eef5 !important; color:#111 !important; }
     table.cal th.sun{ background:#f6dada !important; } table.cal th.sat{ background:#dae6f6 !important; }
-    table.cal td{ border:0.5pt solid #888 !important; height:auto !important; padding:1px 2px !important;
-       vertical-align:top; }
+    table.cal td{ border:0.5pt solid #888 !important; vertical-align:top; }
     table.cal td.satd{ background:#eef4fb !important; } table.cal td.sund{ background:#fbf1f1 !important; }
     table.cal td.holi{ background:#fbf0dc !important; }
-    .daynum{ font-size:9px !important; font-weight:700 !important; }
-    .holiname{ font-size:7px !important; }
-    /* 셀 안 근무자 줄 — 작게 빽빽이, 색 진하게 */
-    .staffrow{ font-size:7.5px !important; line-height:1.15 !important; margin:0 !important; }
-    .staffrow .nm{ font-size:7.5px !important; }
-    .staffrow .slot .badge{ padding:0 1px !important; font-size:7px !important; }
   }
   /* 출석부 매트릭스 (M2d) */
   .sheet-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);}
@@ -1543,12 +1538,36 @@ function printCalendar(){
     if(window.CalViewPref) CalViewPref.set('view','doctor');
     renderCalendar();
   }
+  // 한 장에 들어가도록 축소율 계산 → CSS 변수로 전달
+  _fitPrintScale();
   window.print();
   // 인쇄 후 원래 보기로 복귀
   if(prevView !== 'doctor'){
     if(window.CalViewPref) CalViewPref.set('view', prevView);
     renderCalendar();
   }
+}
+
+// 달력 실제 크기 vs A4 가로 인쇄영역을 비교해 1장에 맞는 배율을 --print-scale 에 설정.
+function _fitPrintScale(){
+  try{
+    var card = document.querySelector('.main-col .card');
+    var tbl  = document.getElementById('calTable');
+    var title= document.getElementById('printTitle');
+    if(!tbl) return;
+    // A4 가로 인쇄 가능 영역(margin 6mm) ≈ 285mm x 198mm. mm→px(96dpi: 1mm≈3.7795px)
+    var MM = 3.7795;
+    var availW = (297 - 12) * MM;   // ≈ 1077px
+    var availH = (210 - 12) * MM;   // ≈ 748px
+    // 콘텐츠 실제 크기(현재 화면 렌더 기준)
+    var contentW = tbl.scrollWidth;
+    var contentH = tbl.scrollHeight + (title ? title.offsetHeight + 8 : 0);
+    if(contentW<=0 || contentH<=0){ document.documentElement.style.setProperty('--print-scale','1'); return; }
+    var scale = Math.min(availW/contentW, availH/contentH, 1);
+    // 너무 작아지지 않게 하한(가독성) — 그래도 1장 우선이므로 0.3까지 허용
+    scale = Math.max(scale, 0.3);
+    document.documentElement.style.setProperty('--print-scale', scale.toFixed(3));
+  }catch(e){ document.documentElement.style.setProperty('--print-scale','1'); }
 }
 
 // ⑮ 통계 — 1)일자별 인원 2)사람별 근무일 3)연차 소진

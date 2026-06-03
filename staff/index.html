@@ -47,6 +47,8 @@
   .stafftable tr.deptgroup .gcount{font-size:11px;color:var(--text2);font-weight:600;margin-left:4px;}
   .stafftable tr.deptgroup.duty td{background:#eef4fc;border-left:3px solid #0C447C;}
   .stafftable tr.deptgroup.outpatient td{background:#fbf3ec;border-left:3px solid #9A5B16;}
+  .stafftable tr.deptgroup.doctor td{background:#eef7f2;border-left:3px solid #1A8C62;}
+  .stafftable tr.deptgroup.admin td{background:#f1f0f5;border-left:3px solid #5B3FA0;}
   .stafftable td.c{text-align:center;} .stafftable td.r{text-align:right;}
   .stafftable .pavatar{width:30px;height:30px;border-radius:50%;background:var(--primary-bg);
        color:var(--primary-d);font-weight:700;display:inline-flex;align-items:center;justify-content:center;
@@ -55,6 +57,8 @@
   .badge-dept{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;}
   .badge-dept.duty{background:#E6F1FB;color:#0C447C;}
   .badge-dept.outpatient{background:#FAEEDA;color:#A35200;}
+  .badge-dept.doctor{background:#DCF2E8;color:#13633F;}
+  .badge-dept.admin{background:#E8E5F2;color:#4A2F8A;}
   .badge-dept.none{background:var(--bg3);color:var(--text2);}
   .badge-mgr{font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:#EEEDFE;color:#4A2E8A;margin-left:4px;}
   .editbtn{border:1px solid var(--line2);background:var(--bg);border-radius:var(--r);
@@ -206,6 +210,22 @@
         <p class="note" style="margin-top:6px;">듀티 자동배치에 쓰이는 직급입니다. (선택 안 하면 평간호사로 배치)</p>
       </div>
 
+      <div class="fld" id="docSpecialtyFld" style="display:none;">
+        <label>의사 세부과목</label>
+        <div class="opts" id="smDocSpecialty">
+          <button type="button" class="opt" data-s="내과">내과</button>
+          <button type="button" class="opt" data-s="신장내과">신장내과</button>
+          <button type="button" class="opt" data-s="가정의학과">가정의학과</button>
+          <button type="button" class="opt" data-s="정형외과">정형외과</button>
+          <button type="button" class="opt" data-s="신경외과">신경외과</button>
+          <button type="button" class="opt" data-s="신경과">신경과</button>
+          <button type="button" class="opt" data-s="외과">외과</button>
+        </div>
+        <input id="smDocSpecialtyEtc" type="text" maxlength="20" placeholder="직접 입력 (위에 없으면)"
+          style="width:100%;margin-top:8px;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:13px;box-sizing:border-box;">
+        <p class="note" style="margin-top:6px;">의사 스케줄에서 분류·표시에 쓰입니다. (이 부서 안에서만 적용)</p>
+      </div>
+
       <div class="fld">
         <label>관리자 그룹</label>
         <div class="opts" id="smManager">
@@ -255,6 +275,7 @@ function deptKindOf(m){
   return String(m).split('_')[0];   // outpatient_1 → outpatient, duty_2 → duty
 }
 function isDutyMember(m){ return m==='duty' || /^duty_\d+$/.test(m); }
+function isDoctorMember(m){ return /^doctor_\d+$/.test(m); }
 function deptBadge(m){
   var cls = deptKindOf(m);
   var lab;
@@ -342,6 +363,7 @@ var _photoData = '';       // 현재 폼의 사진 base64
 var _selMembership = '';   // 선택된 소속
 var _selGroups = [];       // 선택된 관리 그룹
 var _selDutyRole = '';     // 선택된 듀티 직급 (deptAttrs.duty.role)
+var _selDocSpecialty = ''; // 선택된 의사 세부과목 (deptAttrs[doctor_N].specialty)
 function openStaff(pid){
   _editPid = pid || null;
   _photoData = '';
@@ -362,11 +384,19 @@ function openStaff(pid){
     if(isDutyMember(mem) && p.deptAttrs[mem] && p.deptAttrs[mem].role) return p.deptAttrs[mem].role;
     return '';
   })();
+  // 의사 세부과목: 현재 소속 의사부서(doctor_N)의 specialty
+  _selDocSpecialty = (function(){
+    if(!p || !p.deptAttrs) return '';
+    var mem = p.membership||'';
+    if(isDoctorMember(mem) && p.deptAttrs[mem] && p.deptAttrs[mem].specialty) return p.deptAttrs[mem].specialty;
+    return '';
+  })();
   updatePhotoPrev(p ? p.name : '');
   renderMembershipOptions();
   syncMembershipBtns();
   syncManagerBtns();
   syncDutyRoleBtns();
+  syncDocSpecialtyBtns();
   document.getElementById('smDelete').style.display = pid ? '' : 'none';
   document.getElementById('staffModal').classList.add('open');
 }
@@ -407,6 +437,20 @@ function syncMembershipBtns(){
   // 듀티 소속일 때만 직급 선택 노출
   var fld = document.getElementById('dutyRoleFld');
   if(fld) fld.style.display = isDutyMember(_selMembership) ? '' : 'none';
+  // 의사 소속일 때만 세부과목 노출
+  var dfld = document.getElementById('docSpecialtyFld');
+  if(dfld) dfld.style.display = isDoctorMember(_selMembership) ? '' : 'none';
+}
+function syncDocSpecialtyBtns(){
+  // 목록에 있는 과목이면 버튼 on, 없으면 직접입력 칸에 표시
+  var inList = false;
+  Array.prototype.forEach.call(document.querySelectorAll('#smDocSpecialty .opt'), function(o){
+    var on = (o.getAttribute('data-s')===_selDocSpecialty);
+    o.className = 'opt' + (on ? ' on' : '');
+    if(on) inList = true;
+  });
+  var etc = document.getElementById('smDocSpecialtyEtc');
+  if(etc) etc.value = (!inList && _selDocSpecialty) ? _selDocSpecialty : '';
 }
 function syncDutyRoleBtns(){
   Array.prototype.forEach.call(document.querySelectorAll('#smDutyRole .opt'), function(o){
@@ -437,6 +481,22 @@ Array.prototype.forEach.call(document.querySelectorAll('#smMembership .opt'), fu
 Array.prototype.forEach.call(document.querySelectorAll('#smDutyRole .opt'), function(o){
   o.addEventListener('click', function(){ _selDutyRole = o.getAttribute('data-r'); syncDutyRoleBtns(); });
 });
+// 의사 세부과목 선택 (단일) — 버튼 클릭 시 직접입력 비움
+Array.prototype.forEach.call(document.querySelectorAll('#smDocSpecialty .opt'), function(o){
+  o.addEventListener('click', function(){
+    _selDocSpecialty = o.getAttribute('data-s');
+    var etc=document.getElementById('smDocSpecialtyEtc'); if(etc) etc.value='';
+    syncDocSpecialtyBtns();
+  });
+});
+// 직접입력 시 버튼 선택 해제
+(function(){
+  var etc=document.getElementById('smDocSpecialtyEtc');
+  if(etc) etc.addEventListener('input', function(){
+    _selDocSpecialty = etc.value.trim();
+    Array.prototype.forEach.call(document.querySelectorAll('#smDocSpecialty .opt'), function(o){ o.className='opt'; });
+  });
+})();
 // 관리 그룹 토글 (겹침 가능)
 Array.prototype.forEach.call(document.querySelectorAll('#smManager .opt'), function(o){
   o.addEventListener('click', function(){
@@ -521,6 +581,10 @@ document.getElementById('smSave').addEventListener('click', function(){
       } else if(_selDutyRole){
         PersonsStore.setDeptAttrs(pid, _selMembership, { role:_selDutyRole, active:true });
       }
+    } else if(isDoctorMember(_selMembership)){
+      // 의사 소속: 소속 설정 + 세부과목을 그 부서 deptAttrs에 저장
+      if(membershipChanged) PersonsStore.setMembership(pid, _selMembership);
+      PersonsStore.setDeptAttrs(pid, _selMembership, { specialty: _selDocSpecialty || '', active:true });
     } else if(membershipChanged){
       PersonsStore.setMembership(pid, _selMembership || null);
     }

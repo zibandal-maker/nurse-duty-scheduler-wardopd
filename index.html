@@ -133,6 +133,8 @@
       <div id="dutyCards" style="display:contents"></div>
       <!-- M5c: 외래(비교대) 부서 — 레지스트리 기반 동적 렌더 -->
       <div id="calCards" style="display:contents"></div>
+      <!-- M6: 의사과(doctor) 부서 — 레지스트리 kind=doctor 동적 렌더 -->
+      <div id="doctorCards" style="display:contents"></div>
     </div>
 
     <dialog id="newDeptDlg" style="border:0;border-radius:16px;padding:0;max-width:380px;width:90%;box-shadow:0 24px 60px rgba(0,0,0,.25);">
@@ -370,10 +372,58 @@
       e.preventDefault();
       var dlg = document.getElementById('newDeptDlg');
       document.getElementById('newDeptName').value='';
+      if(window._presetDeptKind) _presetDeptKind('outpatient');
       if(dlg.showModal) dlg.showModal(); else dlg.setAttribute('open','');
       setTimeout(function(){ document.getElementById('newDeptName').focus(); }, 50);
     });
     // M5c: 부서 관리(⚙) — 이름변경·삭제
+    Array.prototype.forEach.call(box.querySelectorAll('.deptGear'), function(btn){
+      btn.addEventListener('click', function(e){
+        e.preventDefault(); e.stopPropagation();
+        openDeptManage(decodeURIComponent(btn.getAttribute('data-id')), decodeURIComponent(btn.getAttribute('data-name')));
+      });
+    });
+  }
+  // M6: 의사과(doctor) 부서 카드 — 외래 카드 본뜸. 전용 화면은 doctor/index.html(?dept=).
+  //   1단계 현재: 화면 미구현 → 카드는 '준비 중' 표시(클릭 시 안내). 개설/관리는 동작.
+  function renderDoctorCards(){
+    var box = document.getElementById('doctorCards');
+    if(!box) return;
+    var depts = (window.DeptRegistry) ? DeptRegistry.listByKind('doctor') : [];
+    var html = depts.map(function(d){
+      return '<div class="card cal live" style="position:relative;">'
+        + '<button class="deptGear" data-id="'+encodeURIComponent(d.id)+'" data-name="'+encodeURIComponent(d.name)+'" '
+        +   'title="부서 관리 (이름변경·삭제)" '
+        +   'style="position:absolute;top:10px;right:10px;z-index:2;border:0;background:rgba(255,255,255,.85);border-radius:7px;width:28px;height:28px;cursor:pointer;font-size:14px;line-height:1;">⚙</button>'
+        + '<a href="./doctor/index.html?dept='+encodeURIComponent(d.id)+'" class="docCardLink" data-name="'+encodeURIComponent(d.name)+'" style="text-decoration:none;color:inherit;display:block;">'
+        + '<span class="accent"></span>'
+        + '<span class="ico">🩺</span>'
+        + '<h2>'+escapeHtml(d.name)+'</h2>'
+        + '<div class="todayros empty">의사 스케줄 →</div>'
+        + '<span class="go">바로가기 →</span>'
+        + '</a>'
+        + '</div>';
+    }).join('');
+    // 의사 개설 카드 (항상 마지막)
+    html += '<a class="card cal live" id="newDoctorCard" href="#" '
+      + 'style="display:flex;flex-direction:column;align-items:center;justify-content:center;'
+      + 'border-style:dashed;color:var(--navy);min-height:120px;">'
+      + '<span class="ico" style="margin-bottom:6px">＋</span>'
+      + '<h2 style="font-size:16px">새 의사과 개설</h2>'
+      + '<p style="text-align:center">내과계·정형·신경외과 등</p>'
+      + '</a>';
+    box.innerHTML = html;
+    var addCard = document.getElementById('newDoctorCard');
+    if(addCard) addCard.addEventListener('click', function(e){
+      e.preventDefault();
+      window.__newDeptKindPreset = 'doctor';   // 다이얼로그 기본 계열을 의사로
+      var dlg = document.getElementById('newDeptDlg');
+      document.getElementById('newDeptName').value='';
+      _presetDeptKind('doctor');
+      if(dlg.showModal) dlg.showModal(); else dlg.setAttribute('open','');
+      setTimeout(function(){ document.getElementById('newDeptName').focus(); }, 50);
+    });
+    // 의사 부서 관리(⚙)
     Array.prototype.forEach.call(box.querySelectorAll('.deptGear'), function(btn){
       btn.addEventListener('click', function(e){
         e.preventDefault(); e.stopPropagation();
@@ -388,27 +438,32 @@
     var dlg = document.getElementById('newDeptDlg');
     function closeDlg(){ if(dlg.close) dlg.close(); else dlg.removeAttribute('open'); }
     var _newKind = 'outpatient';
-    Array.prototype.forEach.call(document.querySelectorAll('#newDeptKind .kindopt'), function(b){
-      b.addEventListener('click', function(){
-        _newKind = b.getAttribute('data-k');
-        Array.prototype.forEach.call(document.querySelectorAll('#newDeptKind .kindopt'), function(x){
-          var on = (x===b);
-          x.style.borderColor = on ? 'var(--navy)' : 'var(--line)';
-          x.style.background = on ? 'var(--navy)' : '#fff';
-          x.style.color = on ? '#fff' : 'var(--text)';
-        });
+    function applyKind(k){
+      _newKind = k;
+      Array.prototype.forEach.call(document.querySelectorAll('#newDeptKind .kindopt'), function(x){
+        var on = (x.getAttribute('data-k')===k);
+        x.style.borderColor = on ? 'var(--navy)' : 'var(--line)';
+        x.style.background = on ? 'var(--navy)' : '#fff';
+        x.style.color = on ? '#fff' : 'var(--text)';
       });
+    }
+    // 외부(의사 개설카드)에서 다이얼로그 기본 계열을 지정할 수 있게 노출
+    window._presetDeptKind = applyKind;
+    Array.prototype.forEach.call(document.querySelectorAll('#newDeptKind .kindopt'), function(b){
+      b.addEventListener('click', function(){ applyKind(b.getAttribute('data-k')); });
     });
     function createDept(){
       var name = (document.getElementById('newDeptName').value||'').trim();
       if(!name){ document.getElementById('newDeptName').focus(); return; }
       if(window.DeptRegistry){
         var rec = DeptRegistry.create(name, _newKind);
-        if(rec){ closeDlg(); renderCalCards();
+        if(rec){ closeDlg();
+          renderCalCards(); renderDoctorCards();
           if(_newKind==='outpatient'){
             location.href = './calendar/index.html?dept='+encodeURIComponent(rec.id);
+          } else if(_newKind==='doctor'){
+            location.href = './doctor/index.html?dept='+encodeURIComponent(rec.id);
           } else {
-            // 의사·행정 부서: 개설만. 인원 배치는 직원관리에서.
             alert('['+name+'] 부서를 개설했습니다.\n직원관리에서 인원을 이 부서로 배치하세요. (전용 근무표 화면은 추후 확장)');
           }
         }
@@ -421,6 +476,7 @@
     });
     renderDutyCards();
     renderCalCards();
+    renderDoctorCards();
   })();
 
   // M5c: 부서 관리 — 이름변경 + 삭제(데이터·소속 정리)
@@ -439,14 +495,14 @@
     document.getElementById('dmRenameBtn').addEventListener('click', function(){
       var nm = (document.getElementById('dmRenameInput').value||'').trim();
       if(!nm || !_dmId) return;
-      if(window.DeptRegistry && DeptRegistry.rename(_dmId, nm)){ renderDutyCards(); renderCalCards(); close(); }
+      if(window.DeptRegistry && DeptRegistry.rename(_dmId, nm)){ renderDutyCards(); renderCalCards(); renderDoctorCards(); close(); }
     });
     document.getElementById('dmDeleteBtn').addEventListener('click', function(){
       if(!_dmId) return;
       var nm = document.getElementById('dmName').textContent;
       if(!confirm('['+nm+'] 부서를 삭제합니다.\n\n· 이 부서 근무표가 모두 삭제됩니다.\n· 소속 인원은 부서에서 빠집니다(직원은 직원관리에 유지).\n\n계속할까요?')) return;
       deleteDept(_dmId);
-      renderDutyCards(); renderCalCards(); close();
+      renderDutyCards(); renderCalCards(); renderDoctorCards(); close();
     });
   })();
 
@@ -465,8 +521,9 @@
         }
       });
     }
-    // 2) 근무 데이터 삭제
+    // 2) 근무 데이터 삭제 (외래 cal_sched_*, 의사 doc_sched_*)
     try{ localStorage.removeItem('cal_sched_'+id); }catch(_){}
+    try{ localStorage.removeItem('doc_sched_'+id); }catch(_){}
     // 3) 레지스트리에서 제거
     if(window.DeptRegistry) DeptRegistry.remove(id);
   }
