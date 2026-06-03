@@ -68,6 +68,7 @@
       photo:    r.photo || '',
       memo:     r.memo || '',
       vacTotal: (r.vacTotal!==undefined ? r.vacTotal : null),
+      jobClass: (r.jobClass!==undefined ? r.jobClass : ''),   // 직군 대분류 (간호·의사·행정 등). 부서와 독립.
       ext:      (r.ext && typeof r.ext==='object') ? r.ext : {},
       membership:    (r.membership!==undefined ? r.membership : null),
       isManager:     !!r.isManager,
@@ -96,6 +97,7 @@
     if(fields.photo    !== undefined) cur.photo    = fields.photo;
     if(fields.memo     !== undefined) cur.memo     = fields.memo;
     if(typeof fields.vacTotal==='number') cur.vacTotal = fields.vacTotal;
+    if(fields.jobClass !== undefined) cur.jobClass = fields.jobClass;
     if(fields.ext && typeof fields.ext==='object'){
       for(var k in fields.ext){ if(Object.prototype.hasOwnProperty.call(fields.ext,k)) cur.ext[k]=fields.ext[k]; }
     }

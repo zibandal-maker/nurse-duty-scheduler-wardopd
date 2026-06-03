@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#C0392B">
+<title>응급실 당직표</title>
+<link rel="stylesheet" href="../shared/theme.css">
+<link rel="stylesheet" href="../shared/calendar-grid.css">
+<link rel="stylesheet" href="../shared/uguide.css">
+<style>
+  /* ── 응급실 당직표 전용 ── */
+  :root{ --er:#C0392B; --er-bg:#FCEBEA; }
+  header .ico{color:var(--er);}
+  h1{color:var(--er) !important;}
+  .tag{background:var(--er);}
+  /* 당직의 칸 */
+  table.cal td.daycal{cursor:pointer;}
+  table.cal td.daycal:hover{outline:2px solid var(--er);outline-offset:-2px;}
+  .ername{display:flex;align-items:center;gap:5px;margin-top:4px;font-size:15px;font-weight:700;
+          color:var(--er);background:var(--er-bg);border-radius:6px;padding:3px 7px;}
+  .ername .ico{font-size:14px;}
+  .erempty{margin-top:4px;font-size:12px;color:var(--text3);}
+  /* 당직의 선택 모달 */
+  .docpick{display:flex;flex-direction:column;gap:6px;padding:14px 18px;max-height:50vh;overflow-y:auto;}
+  .docpick button{text-align:left;border:1px solid var(--bd2);background:var(--bg);border-radius:8px;
+       padding:9px 12px;font-size:15px;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:8px;}
+  .docpick button:hover{border-color:var(--er);background:var(--er-bg);}
+  .docpick button.on{border-color:var(--er);background:var(--er-bg);font-weight:700;}
+  .docpick button .dept{margin-left:auto;font-size:12px;color:var(--text3);}
+  .docpick .clearbtn{color:var(--er);border-style:dashed;justify-content:center;}
+  .mh-sub{font-size:13px;color:var(--text2);font-weight:500;margin-left:4px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="ico">🚑</span>
+    <h1 id="pageTitle">응급실 당직표</h1>
+  </header>
+  <p class="sub">병원 전체 공유 당직표. 여기서 정한 당직의가 각 의사과 스케줄 날짜에 (성)으로 표시됩니다.</p>
+
+  <div class="card nav stickybar" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;">
+    <a href="../index.html">← 부서 선택으로</a>
+    <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;">
+      <button class="toolbtn b-reset" id="btnReset" title="이 달 당직표 초기화">↺ 이 달 초기화</button>
+      <button class="toolbtn b-print" id="btnPrint" title="현재 달 인쇄">🖨 인쇄</button>
+    </span>
+  </div>
+
+  <div class="card">
+    <div id="printTitle"></div>
+    <div class="cal-top-sticky" id="calTopSticky">
+    <div class="cal-head">
+      <button id="prevM" title="이전 달">‹</button>
+      <span class="mlabel" id="mLabel">—</span>
+      <button id="nextM" title="다음 달">›</button>
+      <button class="today-btn" id="todayB" title="오늘이 있는 달로">오늘</button>
+      <span class="spacer" id="calHint"></span>
+    </div>
+    </div>
+    <table class="cal" id="calTable">
+      <colgroup>
+        <col class="col-sun"><col><col><col><col><col><col class="col-sat">
+      </colgroup>
+      <thead>
+        <tr><th class="sun">일</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th class="sat">토</th></tr>
+      </thead>
+      <tbody id="calBody"></tbody>
+    </table>
+  </div>
+
+  <!-- 당직의 선택 모달 -->
+  <div class="modal-bg" id="pickModal">
+    <div class="modal" role="dialog" aria-modal="true" style="max-width:420px;">
+      <div class="modal-head">
+        <h3>🚑 당직의 지정</h3>
+        <span class="mh-sub" id="pkSub"></span>
+        <button class="x" id="pkClose" title="닫기">×</button>
+      </div>
+      <div class="docpick" id="pkList"></div>
+    </div>
+  </div>
+</div>
+
+<script src="../shared/utils.js"></script>
+<script src="../shared/calendar-store.js"></script>
+<script src="../shared/persons-store.js"></script>
+<script src="../shared/dept-registry.js"></script>
+<script src="../shared/er-roster-store.js"></script>
+<script>
+/* ============================================================
+   er-duty/index.html — 공유 응급실 당직표 (독립 화면)
+   ------------------------------------------------------------
+   이 화면이 당직표의 "원천". 달력 칸 클릭 → 그날 당직의 1명 선택.
+   저장은 ErRosterStore(dv6_er_roster, 전역 공유). 부서 개념 없음.
+   각 의사과 스케줄(doctor/)은 이 데이터를 읽어 날짜에 (성) 표시.
+   ============================================================ */
+var MONTH_KO = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+var WD_KO = ['일','월','화','수','목','금','토'];
+var _today = new Date();
+var viewY = _today.getFullYear();
+var viewM = _today.getMonth();   // 0-based
+
+// 전체 의사 풀 (모든 doctor_N 부서 합집합, 이름순)
+function _allDoctors(){
+  if(!window.PersonsStore) return [];
+  var out=[], seen={};
+  (PersonsStore.list()||[]).forEach(function(p){
+    var m=p.membership||'';
+    if(/^doctor_\d+$/.test(m) && !seen[p.personId]){
+      seen[p.personId]=true;
+      var deptNm=(window.DeptRegistry && DeptRegistry.get(m))?DeptRegistry.get(m).name:m;
+      out.push({personId:p.personId, name:p.name||p.personId, dept:deptNm});
+    }
+  });
+  out.sort(function(a,b){ return (a.name||'').localeCompare(b.name||'','ko'); });
+  return out;
+}
+
+function renderCalendar(){
+  document.getElementById('mLabel').textContent = viewY+'년 '+MONTH_KO[viewM];
+  var body=document.getElementById('calBody');
+  var total=ndays(viewY, viewM);
+  var firstDow=dow(viewY, viewM, 1);
+  var isThisMonth=(viewY===_today.getFullYear() && viewM===_today.getMonth());
+  var todayD=isThisMonth?_today.getDate():-1;
+  var cells=[];
+  for(var i=0;i<firstDow;i++) cells.push(null);
+  for(var d=1; d<=total; d++) cells.push(d);
+  while(cells.length%7!==0) cells.push(null);
+
+  var html='';
+  for(var r=0;r<cells.length;r+=7){
+    html+='<tr>';
+    for(var c=0;c<7;c++){
+      var d2=cells[r+c];
+      if(d2==null){ html+='<td class="blank"></td>'; continue; }
+      var wd=dow(viewY,viewM,d2);
+      var holi=CalendarStore.isHoliday(viewY,viewM+1,d2);
+      var hname=holi?CalendarStore.name(viewY,viewM+1,d2):'';
+      var cls=['daycal'];
+      if(wd===0) cls.push('sun','sund'); if(wd===6) cls.push('sat','satd');
+      if(holi) cls.push('holi'); if(d2===todayD) cls.push('today');
+      var name=ErRosterStore.name(viewY,viewM+1,d2);
+      var inner = name
+        ? '<div class="ername"><span class="ico">🚑</span>'+escapeHtml(name)+'</div>'
+        : '<div class="erempty">— 미지정 —</div>';
+      html+='<td class="'+cls.join(' ')+'" data-day="'+d2+'">'
+        +   '<div class="dayhead"><span class="daynum">'+d2+'</span>'
+        +   (hname?'<span class="holiname">'+escapeHtml(hname)+'</span>':'')
+        +   '</div>'+inner
+        + '</td>';
+    }
+    html+='</tr>';
+  }
+  body.innerHTML=html;
+  document.getElementById('calHint').textContent=total+'일';
+  Array.prototype.forEach.call(body.querySelectorAll('td.daycal'), function(td){
+    td.addEventListener('click', function(){ openPick(parseInt(td.getAttribute('data-day'),10)); });
+  });
+}
+
+// ── 당직의 선택 모달 ──
+var _pickD=null;
+function openPick(d){
+  _pickD=d;
+  document.getElementById('pkSub').textContent=(viewM+1)+'월 '+d+'일 ('+WD_KO[dow(viewY,viewM,d)]+')';
+  var cur=ErRosterStore.get(viewY,viewM+1,d);
+  var docs=_allDoctors();
+  var list=document.getElementById('pkList');
+  if(!docs.length){
+    list.innerHTML='<p style="color:var(--text2);padding:10px;text-align:center">'
+      +'등록된 의사가 없습니다. 직원관리에서 의사를 의사과로 배치하세요.</p>';
+  } else {
+    list.innerHTML = docs.map(function(dc){
+      return '<button type="button" data-pid="'+escapeHtml(dc.personId)+'" class="'+(dc.personId===cur?'on':'')+'">'
+        + '🩺 '+escapeHtml(dc.name)+'<span class="dept">'+escapeHtml(dc.dept)+'</span></button>';
+    }).join('')
+    + '<button type="button" class="clearbtn" data-pid="">— 미지정으로 —</button>';
+    Array.prototype.forEach.call(list.querySelectorAll('button'), function(b){
+      b.addEventListener('click', function(){
+        ErRosterStore.set(viewY, viewM+1, _pickD, b.getAttribute('data-pid')||'');
+        _closePick(); renderCalendar();
+      });
+    });
+  }
+  document.getElementById('pickModal').classList.add('open');
+}
+function _closePick(){ document.getElementById('pickModal').classList.remove('open'); }
+
+// ── 월 이동 ──
+function shiftMonth(delta){
+  viewM+=delta;
+  if(viewM<0){ viewM=11; viewY--; } else if(viewM>11){ viewM=0; viewY++; }
+  renderCalendar();
+}
+
+// ── 인쇄 (의사·외래와 동일 _fitPrintScale 패턴) ──
+function printCalendar(){
+  var t=document.getElementById('printTitle');
+  if(t) t.textContent='응급실 당직표 — '+viewY+'년 '+MONTH_KO[viewM];
+  _fitPrintScale();
+  window.print();
+}
+function _fitPrintScale(){
+  try{
+    var tbl=document.getElementById('calTable');
+    var title=document.getElementById('printTitle');
+    if(!tbl){ document.documentElement.style.setProperty('--print-scale','1'); return; }
+    var MM=3.7795, availW=(297-12)*MM, availH=(210-12)*MM;
+    var cw=tbl.scrollWidth, ch=tbl.scrollHeight+(title?title.offsetHeight+8:0);
+    if(cw<=0||ch<=0){ document.documentElement.style.setProperty('--print-scale','1'); return; }
+    var scale=Math.min(availW/cw, availH/ch, 1); scale=Math.max(scale,0.3);
+    document.documentElement.style.setProperty('--print-scale', scale.toFixed(3));
+  }catch(e){ document.documentElement.style.setProperty('--print-scale','1'); }
+}
+
+// ── 이 달 초기화 ──
+function resetMonth(){
+  if(!confirm((viewM+1)+'월 응급실 당직표를 모두 지웁니다.\n계속할까요?')) return;
+  var total=ndays(viewY,viewM);
+  for(var d=1; d<=total; d++) ErRosterStore.set(viewY, viewM+1, d, '');
+  renderCalendar();
+}
+
+// ── 부팅 ──
+if(window.CalendarStore && CalendarStore.load) CalendarStore.load();
+renderCalendar();
+document.getElementById('prevM').addEventListener('click', function(){ shiftMonth(-1); });
+document.getElementById('nextM').addEventListener('click', function(){ shiftMonth(1); });
+document.getElementById('todayB').addEventListener('click', function(){
+  viewY=_today.getFullYear(); viewM=_today.getMonth(); renderCalendar();
+});
+document.getElementById('btnPrint').addEventListener('click', printCalendar);
+document.getElementById('btnReset').addEventListener('click', resetMonth);
+document.getElementById('pkClose').addEventListener('click', _closePick);
+document.getElementById('pickModal').addEventListener('click', function(e){ if(e.target===this) _closePick(); });
+</script>
+<script>
+window.UGUIDE_ITEMS = [{
+  icon:'🚑', title:'응급실 당직표 사용 가이드',
+  html:'<p><b>당직 지정</b> — 달력 날짜 칸을 클릭해 그날 응급실 당직의를 고릅니다(전체 의사과에서 선택, 하루 1명).</p>'
+    +'<p><b>공유</b> — 여기서 정한 당직의의 성씨가 각 의사과 스케줄의 날짜에 🚑(성)으로 자동 표시됩니다(읽기 전용).</p>'
+    +'<p><b>의사 등록</b> — 후보 의사는 직원관리에서 의사과로 배치된 인원입니다.</p>'
+}];
+</script>
+<script src="../shared/uguide.js"></script>
+<script src="../shared/version.js"></script>
+</body>
+</html>

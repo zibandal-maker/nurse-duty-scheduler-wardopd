@@ -404,6 +404,16 @@
         + '</a>'
         + '</div>';
     }).join('');
+    // 의사 부서가 있으면 공유 응급실 당직표 진입 카드
+    if(depts.length){
+      html += '<a class="card cal live" href="./er-duty/index.html" style="text-decoration:none;color:inherit;display:block;position:relative;">'
+        + '<span class="accent" style="background:#C0392B"></span>'
+        + '<span class="ico">🚑</span>'
+        + '<h2>응급실 당직표</h2>'
+        + '<div class="todayros empty">전체 공유 · 의사과가 읽어감</div>'
+        + '<span class="go">바로가기 →</span>'
+        + '</a>';
+    }
     // 의사 개설 카드 (항상 마지막)
     html += '<a class="card cal live" id="newDoctorCard" href="#" '
       + 'style="display:flex;flex-direction:column;align-items:center;justify-content:center;'

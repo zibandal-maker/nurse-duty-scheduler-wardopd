@@ -165,6 +165,11 @@
         <label>이름 *</label>
         <input type="text" id="smName" placeholder="홍길동">
       </div>
+      <div class="fld">
+        <label>직군 <span style="font-weight:400;color:var(--text3);font-size:12px">(인력 대분류)</span></label>
+        <div class="opts" id="smJobClass"></div>
+        <p class="note" style="margin-top:6px;">이 사람이 어떤 종류의 일을 하는지(부서와 별개). <a href="#" id="jcManageLink" style="color:var(--primary)">직군 목록 관리</a></p>
+      </div>
       <div class="fld-row">
         <div class="fld">
           <label>입사년도</label>
@@ -241,9 +246,29 @@
   </div>
 </div>
 
+<!-- 직군 목록 관리 모달 -->
+<div class="modal-bg" id="jcModal">
+  <div class="modal" style="max-width:440px;">
+    <div class="modal-head" style="display:flex;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line);">
+      <h3 style="margin:0;font-size:17px;color:var(--primary-d);">직군 목록 관리</h3>
+      <button id="jcClose" style="margin-left:auto;border:0;background:none;font-size:22px;cursor:pointer;color:var(--text2);">✕</button>
+    </div>
+    <div class="modal-content" style="padding:14px 18px;">
+      <div id="jcList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px;"></div>
+      <div style="display:flex;gap:6px;border-top:1px solid var(--line);padding-top:12px;">
+        <input type="text" id="jcNewName" placeholder="새 직군 이름 (예: 영양, 사회사업)" maxlength="12"
+          style="flex:1;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:14px;">
+        <button id="jcAdd" style="border:0;background:var(--primary);color:#fff;border-radius:8px;padding:8px 16px;font-weight:600;cursor:pointer;">추가</button>
+      </div>
+      <p class="note" style="margin-top:8px;color:var(--text3);font-size:12px;">기본 직군(간호·의사·행정 등)은 이름만 바꿀 수 있고 삭제는 안 됩니다. 직군을 삭제하면 그 직군이던 직원은 ‘미지정’이 됩니다.</p>
+    </div>
+  </div>
+</div>
+
 <script src="../shared/utils.js"></script>
 <script src="../shared/persons-store.js"></script>
 <script src="../shared/dept-registry.js"></script>
+<script src="../shared/job-class-registry.js"></script>
 <script src="../shared/personnel-migrate.js"></script>
 <script src="../shared/nurses-store.js"></script>
 <script src="../shared/duty-adapter.js"></script>
@@ -332,9 +357,14 @@ function renderList(){
       var av = p.photo ? '<span class="pavatar"><img src="'+escapeHtml(p.photo)+'"></span>'
                        : '<span class="pavatar">'+escapeHtml(initial(p.name))+'</span>';
       var mgr = p.isManager ? '<span class="badge-mgr">관리</span>' : '';
+      var jcBadge = '';
+      if(p.jobClass && window.JobClassRegistry){
+        var jc = JobClassRegistry.get(p.jobClass);
+        if(jc) jcBadge = '<span style="font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;background:'+jc.color+'1f;color:'+jc.color+';">'+escapeHtml(jc.name)+'</span>';
+      }
       var vac = (typeof p.vacTotal==='number') ? p.vacTotal+'일' : '—';
       html += '<tr class="memberrow">'
-        + '<td><div style="display:flex;align-items:center;gap:8px;padding-left:14px;">'+av+'<b>'+escapeHtml(p.name||'(이름없음)')+'</b>'+mgr+'</div></td>'
+        + '<td><div style="display:flex;align-items:center;gap:8px;padding-left:14px;">'+av+'<b>'+escapeHtml(p.name||'(이름없음)')+'</b>'+jcBadge+mgr+'</div></td>'
         + '<td>'+deptBadge(p.membership)+'</td>'
         + '<td>'+escapeHtml(p.birthday||'—')+'</td>'
         + '<td class="r">'+vac+'</td>'
@@ -376,6 +406,7 @@ function openStaff(pid){
   document.getElementById('smMemo').value  = p ? (p.memo||'') : '';
   _photoData = p ? (p.photo||'') : '';
   _selMembership = p ? (p.membership||'') : '';
+  _selJobClass = p ? (p.jobClass||'') : '';
   _selGroups = (p && Array.isArray(p.managerGroups)) ? p.managerGroups.slice() : [];
   // 듀티 직급: 현재 소속 병동(duty 또는 duty_N)의 role
   _selDutyRole = (function(){
@@ -392,6 +423,7 @@ function openStaff(pid){
     return '';
   })();
   updatePhotoPrev(p ? p.name : '');
+  renderJobClassOptions();
   renderMembershipOptions();
   syncMembershipBtns();
   syncManagerBtns();
@@ -400,6 +432,85 @@ function openStaff(pid){
   document.getElementById('smDelete').style.display = pid ? '' : 'none';
   document.getElementById('staffModal').classList.add('open');
 }
+// 직군(대분류) 선택 — JobClassRegistry 기반
+var _selJobClass = '';
+function renderJobClassOptions(){
+  var box = document.getElementById('smJobClass');
+  if(!box || !window.JobClassRegistry) return;
+  var html = '<button type="button" class="opt" data-v="">미지정</button>';
+  JobClassRegistry.list().forEach(function(jc){
+    html += '<button type="button" class="opt" data-v="'+escapeHtml(jc.id)+'">'+escapeHtml(jc.name)+'</button>';
+  });
+  box.innerHTML = html;
+  Array.prototype.forEach.call(box.querySelectorAll('.opt'), function(o){
+    o.addEventListener('click', function(){ _selJobClass = o.getAttribute('data-v'); syncJobClassBtns(); });
+  });
+  syncJobClassBtns();
+}
+function syncJobClassBtns(){
+  Array.prototype.forEach.call(document.querySelectorAll('#smJobClass .opt'), function(o){
+    o.className = 'opt' + (o.getAttribute('data-v')===_selJobClass ? ' on' : '');
+  });
+}
+
+// ── 직군 목록 관리 모달 ──
+function openJcModal(){ renderJcList(); document.getElementById('jcModal').classList.add('open'); }
+function closeJcModal(){
+  document.getElementById('jcModal').classList.remove('open');
+  renderJobClassOptions();   // 편집창 직군 버튼 갱신
+  if(typeof renderList==='function') renderList();
+}
+function renderJcList(){
+  var box=document.getElementById('jcList'); if(!box||!window.JobClassRegistry) return;
+  box.innerHTML = JobClassRegistry.list().map(function(jc){
+    return '<div class="jcrow" data-id="'+escapeHtml(jc.id)+'" style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;">'
+      + '<input type="color" value="'+escapeHtml(jc.color)+'" data-id="'+escapeHtml(jc.id)+'" class="jcColor" style="width:26px;height:26px;border:0;padding:0;background:none;cursor:pointer;flex:0 0 auto;">'
+      + '<input type="text" value="'+escapeHtml(jc.name)+'" data-id="'+escapeHtml(jc.id)+'" class="jcName" maxlength="12" style="flex:1;border:1px solid transparent;border-radius:6px;padding:4px 6px;font-size:14px;font-weight:600;background:transparent;">'
+      + (jc.builtin ? '<span style="font-size:11px;color:var(--text3);flex:0 0 auto;">기본</span>'
+                    : '<button class="jcDel" data-id="'+escapeHtml(jc.id)+'" style="border:1px solid var(--warn,#C0392B);background:#fff;color:var(--warn,#C0392B);border-radius:6px;padding:3px 9px;font-size:12px;cursor:pointer;flex:0 0 auto;">삭제</button>')
+      + '</div>';
+  }).join('');
+  // 이름 변경 (blur 시)
+  Array.prototype.forEach.call(box.querySelectorAll('.jcName'), function(inp){
+    inp.addEventListener('change', function(){ JobClassRegistry.rename(inp.getAttribute('data-id'), inp.value); });
+    inp.addEventListener('focus', function(){ inp.style.borderColor='var(--line2,#ccc)'; });
+    inp.addEventListener('blur', function(){ inp.style.borderColor='transparent'; });
+  });
+  // 색 변경
+  Array.prototype.forEach.call(box.querySelectorAll('.jcColor'), function(c){
+    c.addEventListener('change', function(){ JobClassRegistry.setColor(c.getAttribute('data-id'), c.value); });
+  });
+  // 삭제 (사용자 추가분만). 그 직군이던 사람은 jobClass 비움.
+  Array.prototype.forEach.call(box.querySelectorAll('.jcDel'), function(btn){
+    btn.addEventListener('click', function(){
+      var id=btn.getAttribute('data-id');
+      var nm=JobClassRegistry.name(id);
+      var users=(PersonsStore.list()||[]).filter(function(p){ return p.jobClass===id; });
+      if(!confirm('직군 ['+nm+']을 삭제합니다.'+(users.length?('\n이 직군인 직원 '+users.length+'명은 ‘미지정’이 됩니다.'):'')+'\n\n계속할까요?')) return;
+      users.forEach(function(p){ PersonsStore.upsert(p.personId, {jobClass:''}); });
+      JobClassRegistry.remove(id);
+      renderJcList();
+    });
+  });
+}
+function addJobClass(){
+  var inp=document.getElementById('jcNewName');
+  var nm=(inp.value||'').trim();
+  if(!nm) return;
+  JobClassRegistry.create(nm);
+  inp.value='';
+  renderJcList();
+}
+(function _bindJcModal(){
+  var link=document.getElementById('jcManageLink');
+  if(link) link.addEventListener('click', function(e){ e.preventDefault(); openJcModal(); });
+  var c=document.getElementById('jcClose'); if(c) c.addEventListener('click', closeJcModal);
+  var a=document.getElementById('jcAdd'); if(a) a.addEventListener('click', addJobClass);
+  var ni=document.getElementById('jcNewName');
+  if(ni) ni.addEventListener('keydown', function(e){ if(e.key==='Enter') addJobClass(); });
+  var bg=document.getElementById('jcModal');
+  if(bg) bg.addEventListener('click', function(e){ if(e.target===this) closeJcModal(); });
+})();
 // M5d/⑰: 소속 옵션을 레지스트리에서 동적 생성 — 미배정·듀티 + 등록된 부서(계열별)
 var KIND_LABEL = { duty:'병동', outpatient:'외래', doctor:'의사', admin:'행정' };
 function renderMembershipOptions(){
@@ -558,7 +669,8 @@ document.getElementById('smSave').addEventListener('click', function(){
     joinDate: document.getElementById('smJoin').value.trim(),
     birthday: document.getElementById('smBirth').value.trim(),
     memo: document.getElementById('smMemo').value,
-    photo: _photoData
+    photo: _photoData,
+    jobClass: _selJobClass
   };
   if(vacRaw!=='' && !isNaN(parseFloat(vacRaw))) fields.vacTotal = parseFloat(vacRaw);
   // 관리자 그룹은 기본 필드와 함께 저장
