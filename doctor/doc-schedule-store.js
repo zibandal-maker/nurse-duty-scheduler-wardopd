@@ -54,7 +54,8 @@
     var st = (s.status==='휴진') ? '휴진' : '근무';
     return {
       erCall:er, block:!!s.block, consult:!!s.consult,
-      endo:!!s.endo, status:st, memo:(s.memo!=null)?String(s.memo):''
+      endo:!!s.endo, status:st, memo:(s.memo!=null)?String(s.memo):'',
+      fixed:!!s.fixed   // 요일고정으로 채워진 슬롯 표시 (재배치 시 구분)
     };
   }
   // 셀 정규화. 구버전(하루 단일 6속성)이면 am으로 이주.

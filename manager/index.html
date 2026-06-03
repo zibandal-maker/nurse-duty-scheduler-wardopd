@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>관리자 근무 현황 — 수간호사단</title>
+<title>관리자 근무 현황 — 각 부서장</title>
 <!--
-   manager/index.html — 관리그룹(수간호사단) 근무 집계 뷰 (M4f, 읽기 전용)
+   manager/index.html — 관리그룹(각 부서장) 근무 집계 뷰 (M4f, 읽기 전용)
    ★ 새 데이터 없음 — 각 멤버의 소속 부서 장부(듀티 dv6_s_duty / 비교대 cal_sched_outpatient)를
      ManagerView 어댑터로 거울처럼 비춰 한 화면에 모은다. 편집 불가(진실원은 각 부서).
    ★ ward-context 미로드 (부서 아님). 인력은 종합 풀에서 listByGroup으로.
@@ -63,10 +63,10 @@
     <button id="prevBtn">‹ 이전</button>
     <span class="mlabel" id="mLabel">—</span>
     <button id="nextBtn">다음 ›</button>
-    <span style="font-size:12px;color:var(--muted)">수간호사단 <b id="memCount">—</b>명</span>
+    <span style="font-size:12px;color:var(--muted)">각 부서장 <b id="memCount">—</b>명</span>
   </div>
   </div>
-  <p class="sub">수간호사단 멤버의 근무를 각자 소속 부서(듀티·비교대)에서 모아 보여줍니다. 읽기 전용 — 근무 수정은 각 부서 화면에서.</p>
+  <p class="sub">각 부서장 멤버의 근무를 각자 소속 부서(병동·외래·의사과)에서 모아 보여줍니다. 읽기 전용 — 근무 수정은 각 부서 화면에서.</p>
 
   <div class="legend">
     <span class="lg"><span class="sw" style="background:var(--duty-bg)"></span>듀티(D·E·N·O·V)</span>
@@ -82,7 +82,7 @@
 <script src="./../calendar/cal-shifts.js"></script>
 <script src="../shared/manager-view.js"></script>
 <script>
-/* 관리그룹 고정: 현재 수간호사단(head_nurses)만. 추후 그룹 선택 UI 확장 가능. */
+/* 관리그룹 고정: 현재 각 부서장(head_nurses)만. 추후 그룹 선택 UI 확장 가능. */
 var GROUP = 'head_nurses';
 var MONTH_KO = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
 var WD_KO = ['일','월','화','수','목','금','토'];
@@ -112,8 +112,8 @@ function render(){
   var el = document.getElementById('matrix');
 
   if(mat.people.length === 0){
-    el.innerHTML = '<div class="empty-msg">수간호사단으로 지정된 인원이 없습니다.<br>'
-      + '직원관리에서 관리자 그룹(수간호사단)을 지정하면 여기에 모입니다.</div>';
+    el.innerHTML = '<div class="empty-msg">각 부서장으로 지정된 인원이 없습니다.<br>'
+      + '직원관리에서 관리자 그룹(각 부서장)을 지정하면 여기에 모입니다.</div>';
     return;
   }
 
@@ -157,8 +157,8 @@ render();
 <script>
 window.UGUIDE_ITEMS = [{
   icon:'📖', title:'관리자 근무 현황 가이드',
-  html:'<p><b>무엇을 보나요?</b> 관리자 그룹(수간호사단)으로 지정된 인원의 근무를, 각자 소속 부서에서 모아 한 달 매트릭스로 보여줍니다.</p>'
-    +'<p><b>지정 방법</b> — 직원관리 편집창에서 “관리자 그룹(수간호사단)”을 체크하면 여기에 모입니다.</p>'
+  html:'<p><b>무엇을 보나요?</b> 관리자 그룹(각 부서장)으로 지정된 인원의 근무를, 각자 소속 부서에서 모아 한 달 매트릭스로 보여줍니다.</p>'
+    +'<p><b>지정 방법</b> — 직원관리 편집창에서 “관리자 그룹(각 부서장)”을 체크하면 여기에 모입니다.</p>'
     +'<p><b>이름 옆 배지</b> — 그 관리자가 속한 부서(31병동·외과 외래 등)를 표시합니다.</p>'
     +'<p><b>읽기 전용</b> — 근무 수정은 각 부서 근무표에서 합니다.</p>'
 }];

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>근무 스케줄러 — 부서 선택</title>
+<title>통합 병원 인력 스케줄러 — 부서 선택</title>
 <!-- 공유 모듈: 사람 풀을 읽어 전체 인원 표시 (풀 분리 동작 확인)
      ★ ward-context.js 는 로드하지 않는다 — 듀티 전용(WARD_ID='duty' + 로드 즉시 듀티 마이그레이션).
        부서 선택 화면은 어느 부서도 아니므로 persons-store(공유 풀)만 필요하다. -->
@@ -124,7 +124,7 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="brand">Nurse Scheduler</div>
+    <div class="brand">통합 병원 인력 스케줄러</div>
     <h1>부서를 선택하세요</h1>
     <p class="sub">근무 스케줄을 관리할 부서를 고르면 해당 앱으로 이동합니다.</p>
 
@@ -135,7 +135,34 @@
       <div id="calCards" style="display:contents"></div>
       <!-- M6: 의사과(doctor) 부서 — 레지스트리 kind=doctor 동적 렌더 -->
       <div id="doctorCards" style="display:contents"></div>
+      <!-- 통합 개설 카드 (항상 가장 뒤) -->
+      <a class="card cal live" id="newDeptCardUnified" href="#"
+        style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+        border-style:dashed;color:var(--navy);min-height:120px;">
+        <span class="ico" style="margin-bottom:6px">＋</span>
+        <h2 style="font-size:16px">새 부서 개설</h2>
+        <p style="text-align:center">병동·외래·의사과</p>
+      </a>
     </div>
+
+    <!-- 개설 계열 선택 서브메뉴 -->
+    <dialog id="newKindMenu" style="border:0;border-radius:16px;padding:0;max-width:340px;width:90%;box-shadow:0 24px 60px rgba(0,0,0,.25);">
+      <div style="padding:22px;">
+        <h3 style="margin:0 0 6px;font-size:18px;color:var(--navy-deep);font-weight:800;">어떤 부서를 개설할까요?</h3>
+        <p style="margin:0 0 16px;font-size:13px;color:var(--muted);line-height:1.5;">개설할 부서 계열을 고르세요.</p>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <button type="button" class="kindmenu-opt" data-k="duty" style="display:flex;align-items:center;gap:10px;padding:12px 14px;border:1.5px solid var(--line);background:#fff;border-radius:10px;font-size:15px;cursor:pointer;text-align:left;">
+            <span style="font-size:20px">🏥</span><span><b>병동</b> <span style="color:var(--muted);font-size:13px">— D·E·N 3교대 듀티</span></span></button>
+          <button type="button" class="kindmenu-opt" data-k="outpatient" style="display:flex;align-items:center;gap:10px;padding:12px 14px;border:1.5px solid var(--line);background:#fff;border-radius:10px;font-size:15px;cursor:pointer;text-align:left;">
+            <span style="font-size:20px">🔄</span><span><b>외래</b> <span style="color:var(--muted);font-size:13px">— 오전·오후 비교대</span></span></button>
+          <button type="button" class="kindmenu-opt" data-k="doctor" style="display:flex;align-items:center;gap:10px;padding:12px 14px;border:1.5px solid var(--line);background:#fff;border-radius:10px;font-size:15px;cursor:pointer;text-align:left;">
+            <span style="font-size:20px">🩺</span><span><b>의사과</b> <span style="color:var(--muted);font-size:13px">— 내과계·정형·응급의학과 등</span></span></button>
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:14px;">
+          <button id="newKindCancel" style="padding:9px 16px;border:1px solid var(--line);background:#fff;border-radius:9px;font-size:14px;cursor:pointer;">취소</button>
+        </div>
+      </div>
+    </dialog>
 
     <dialog id="newDeptDlg" style="border:0;border-radius:16px;padding:0;max-width:380px;width:90%;box-shadow:0 24px 60px rgba(0,0,0,.25);">
       <div style="padding:24px;">
@@ -143,9 +170,9 @@
         <p style="margin:0 0 16px;font-size:13px;color:var(--muted);line-height:1.5;">예: 외과계 외래, 내과계 외래, 주사실, 의사팀, 행정팀. 개설 후 직원관리에서 인원을 이 부서로 배치합니다.</p>
         <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:5px;font-weight:600;">부서 계열</label>
         <div id="newDeptKind" style="display:flex;gap:6px;margin-bottom:12px;">
+          <button type="button" class="kindopt" data-k="duty" style="flex:1;padding:8px;border:1.5px solid var(--line);background:#fff;color:var(--text);border-radius:8px;font-size:13px;cursor:pointer;">병동</button>
           <button type="button" class="kindopt on" data-k="outpatient" style="flex:1;padding:8px;border:1.5px solid var(--navy);background:var(--navy);color:#fff;border-radius:8px;font-size:13px;cursor:pointer;">외래</button>
           <button type="button" class="kindopt" data-k="doctor" style="flex:1;padding:8px;border:1.5px solid var(--line);background:#fff;color:var(--text);border-radius:8px;font-size:13px;cursor:pointer;">의사</button>
-          <button type="button" class="kindopt" data-k="admin" style="flex:1;padding:8px;border:1.5px solid var(--line);background:#fff;color:var(--text);border-radius:8px;font-size:13px;cursor:pointer;">행정</button>
         </div>
         <input id="newDeptName" type="text" placeholder="부서 이름" maxlength="20"
           style="width:100%;padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px;margin-bottom:14px;box-sizing:border-box;">
@@ -198,7 +225,7 @@
       <span class="ico">👑</span>
       <div class="staff-txt">
         <h2>관리자 근무 현황</h2>
-        <p>수간호사단 근무를 각자 소속 부서에서 모아 봅니다. 읽기 전용 집계 뷰.</p>
+        <p>각 부서장 근무를 각자 소속 부서에서 모아 봅니다. 읽기 전용 집계 뷰.</p>
       </div>
       <span class="go">보기 →</span>
     </a>
@@ -321,7 +348,7 @@
       // 등록된 듀티 병동이 없으면 기본 듀티 카드 1개 (하위호환)
       box.innerHTML = '<a class="card duty live" href="./duty/index.html">'
         + '<span class="accent"></span><span class="ico">🗓️</span>'
-        + '<h2>듀티 부서</h2>'
+        + '<h2>병동</h2>'
         + '<span class="go">바로가기 →</span></a>';
       return;
     }
@@ -358,24 +385,7 @@
         + '</a>'
         + '</div>';
     }).join('');
-    // 개설 카드 (항상 마지막)
-    html += '<a class="card cal live" id="newDeptCard" href="#" '
-      + 'style="display:flex;flex-direction:column;align-items:center;justify-content:center;'
-      + 'border-style:dashed;color:var(--navy);min-height:120px;">'
-      + '<span class="ico" style="margin-bottom:6px">＋</span>'
-      + '<h2 style="font-size:16px">새 외래 부서 개설</h2>'
-      + '<p style="text-align:center">외과계·내과계·주사실 등</p>'
-      + '</a>';
     box.innerHTML = html;
-    var addCard = document.getElementById('newDeptCard');
-    if(addCard) addCard.addEventListener('click', function(e){
-      e.preventDefault();
-      var dlg = document.getElementById('newDeptDlg');
-      document.getElementById('newDeptName').value='';
-      if(window._presetDeptKind) _presetDeptKind('outpatient');
-      if(dlg.showModal) dlg.showModal(); else dlg.setAttribute('open','');
-      setTimeout(function(){ document.getElementById('newDeptName').focus(); }, 50);
-    });
     // M5c: 부서 관리(⚙) — 이름변경·삭제
     Array.prototype.forEach.call(box.querySelectorAll('.deptGear'), function(btn){
       btn.addEventListener('click', function(e){
@@ -414,25 +424,7 @@
         + '<span class="go">바로가기 →</span>'
         + '</a>';
     }
-    // 의사 개설 카드 (항상 마지막)
-    html += '<a class="card cal live" id="newDoctorCard" href="#" '
-      + 'style="display:flex;flex-direction:column;align-items:center;justify-content:center;'
-      + 'border-style:dashed;color:var(--navy);min-height:120px;">'
-      + '<span class="ico" style="margin-bottom:6px">＋</span>'
-      + '<h2 style="font-size:16px">새 의사과 개설</h2>'
-      + '<p style="text-align:center">내과계·정형·신경외과 등</p>'
-      + '</a>';
     box.innerHTML = html;
-    var addCard = document.getElementById('newDoctorCard');
-    if(addCard) addCard.addEventListener('click', function(e){
-      e.preventDefault();
-      window.__newDeptKindPreset = 'doctor';   // 다이얼로그 기본 계열을 의사로
-      var dlg = document.getElementById('newDeptDlg');
-      document.getElementById('newDeptName').value='';
-      _presetDeptKind('doctor');
-      if(dlg.showModal) dlg.showModal(); else dlg.setAttribute('open','');
-      setTimeout(function(){ document.getElementById('newDeptName').focus(); }, 50);
-    });
     // 의사 부서 관리(⚙)
     Array.prototype.forEach.call(box.querySelectorAll('.deptGear'), function(btn){
       btn.addEventListener('click', function(e){
@@ -468,13 +460,15 @@
       if(window.DeptRegistry){
         var rec = DeptRegistry.create(name, _newKind);
         if(rec){ closeDlg();
-          renderCalCards(); renderDoctorCards();
+          renderDutyCards(); renderCalCards(); renderDoctorCards();
           if(_newKind==='outpatient'){
             location.href = './calendar/index.html?dept='+encodeURIComponent(rec.id);
           } else if(_newKind==='doctor'){
             location.href = './doctor/index.html?dept='+encodeURIComponent(rec.id);
+          } else if(_newKind==='duty'){
+            location.href = './duty/index.html?ward='+encodeURIComponent(rec.id);
           } else {
-            alert('['+name+'] 부서를 개설했습니다.\n직원관리에서 인원을 이 부서로 배치하세요. (전용 근무표 화면은 추후 확장)');
+            alert('['+name+'] 부서를 개설했습니다.\n직원관리에서 인원을 이 부서로 배치하세요.');
           }
         }
       }
@@ -484,6 +478,26 @@
     document.getElementById('newDeptName').addEventListener('keydown', function(e){
       if(e.key==='Enter') createDept();
     });
+
+    // 통합 개설 카드 → 계열 선택 서브메뉴
+    var kindMenu = document.getElementById('newKindMenu');
+    function openKindMenu(){ if(kindMenu.showModal) kindMenu.showModal(); else kindMenu.setAttribute('open',''); }
+    function closeKindMenu(){ if(kindMenu.close) kindMenu.close(); else kindMenu.removeAttribute('open'); }
+    var unified = document.getElementById('newDeptCardUnified');
+    if(unified) unified.addEventListener('click', function(e){ e.preventDefault(); openKindMenu(); });
+    Array.prototype.forEach.call(document.querySelectorAll('#newKindMenu .kindmenu-opt'), function(b){
+      b.addEventListener('click', function(){
+        var k=b.getAttribute('data-k');
+        closeKindMenu();
+        document.getElementById('newDeptName').value='';
+        if(dlg.showModal) dlg.showModal(); else dlg.setAttribute('open','');
+        applyKind(k);
+        setTimeout(function(){ document.getElementById('newDeptName').focus(); }, 50);
+      });
+    });
+    document.getElementById('newKindCancel').addEventListener('click', closeKindMenu);
+    kindMenu.addEventListener('click', function(e){ if(e.target===kindMenu) closeKindMenu(); });
+
     renderDutyCards();
     renderCalCards();
     renderDoctorCards();
