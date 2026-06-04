@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#C0392B">
 <title>응급실 당직표</title>
-<link rel="stylesheet" href="../shared/theme.css?v=6495">
-<link rel="stylesheet" href="../shared/calendar-grid.css?v=6495">
-<link rel="stylesheet" href="../shared/uguide.css?v=6495">
+<link rel="stylesheet" href="../shared/theme.css?v=6496">
+<link rel="stylesheet" href="../shared/calendar-grid.css?v=6496">
+<link rel="stylesheet" href="../shared/uguide.css?v=6496">
 <style>
   :root{ --er:#C0392B; --er-bg:#FCEBEA; }
   header .ico{color:var(--er);}
@@ -25,6 +25,13 @@
        box-shadow:0 0 0 1px var(--bd2);cursor:pointer;flex:0 0 auto;position:relative;overflow:hidden;}
   .erm .ercolor input[type=color]{position:absolute;inset:-4px;width:28px;height:28px;border:0;padding:0;
        opacity:0;cursor:pointer;}
+  .erm .ermdel{margin-left:6px;width:22px;height:22px;border:0;background:transparent;color:var(--text3);
+       border-radius:6px;cursor:pointer;font-size:13px;flex:0 0 auto;line-height:1;}
+  .erm .ermdel:hover{background:#FCEBEA;color:#C0392B;}
+  .eradd{margin-top:10px;border:1px dashed var(--bd2);border-radius:var(--r);overflow:hidden;}
+  .eradd summary{cursor:pointer;padding:9px 12px;font-size:14px;font-weight:600;color:var(--text2);user-select:none;}
+  .eradd summary:hover{background:var(--er-bg);}
+  .eradd .eradd-body{padding:10px 12px;border-top:1px dashed var(--bd2);}
   .erhint{font-size:13px;color:var(--text2);background:var(--er-bg);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;}
   .erhint b{color:var(--er);}
   table.cal td.daycal{cursor:pointer;}
@@ -46,13 +53,11 @@
     <span class="ico">🚑</span>
     <h1 id="pageTitle">응급실 당직표</h1>
   </header>
-  <p class="sub">응급의학과 당직표(하루 1명, 24시간). 여기 당직의의 성씨가 각 의사과 스케줄 날짜 옆에 표시됩니다.</p>
+  <p class="sub">응급실 당직표(하루 1명, 24시간). 오른쪽에서 미배치 의사를 응급실 인원으로 추가한 뒤, 그 인원으로 당직을 짭니다. 당직의 성씨는 각 의사과 스케줄 날짜 옆에도 표시됩니다.</p>
 
   <div class="card nav stickybar" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;">
     <a href="../index.html">← 부서 선택으로</a>
-    <span class="deptpick" style="margin-left:14px;">
-      응급실 부서: <select id="erDeptSel"></select>
-    </span>
+    <span class="deptpick" style="margin-left:14px;color:var(--text2);">🚑 응급실 당직 인원은 오른쪽에서 직접 관리합니다.</span>
     <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;">
       <button class="toolbtn b-reset" id="btnReset" title="이 달 당직표 초기화">↺ 이 달 초기화</button>
       <button class="toolbtn b-print" id="btnPrint" title="현재 달 인쇄">🖨 인쇄</button>
@@ -100,11 +105,11 @@
   </div><!-- /layout -->
 </div>
 
-<script src="../shared/utils.js?v=6495"></script>
-<script src="../shared/calendar-store.js?v=6495"></script>
-<script src="../shared/persons-store.js?v=6495"></script>
-<script src="../shared/dept-registry.js?v=6495"></script>
-<script src="../shared/er-roster-store.js?v=6495"></script>
+<script src="../shared/utils.js?v=6496"></script>
+<script src="../shared/calendar-store.js?v=6496"></script>
+<script src="../shared/persons-store.js?v=6496"></script>
+<script src="../shared/dept-registry.js?v=6496"></script>
+<script src="../shared/er-roster-store.js?v=6496"></script>
 <script>
 /* ============================================================
    er-duty/index.html — 응급실(응급의학과) 당직표 (독립)
@@ -123,48 +128,74 @@ var viewM = _today.getMonth();
 var _selPid = null;
 var _erDept = '';
 
-function _doctorDepts(){ return (window.DeptRegistry) ? DeptRegistry.listByKind('doctor') : []; }
+// 응급실 전용 부서 확보 — 없으면 생성. kind='doctor'(당직의=의사, 직군 제한과 일치). 이름 '응급실'.
+//   ErRosterStore.getDeptId 에 그 부서 id를 보관. 한 번 정해지면 고정.
+function _ensureErDept(){
+  if(!window.DeptRegistry) return '';
+  var saved = (window.ErRosterStore) ? ErRosterStore.getDeptId() : '';
+  if(saved && DeptRegistry.get && DeptRegistry.get(saved)) return saved;   // 이미 유효한 부서
+  // 기존에 '응급실' 이름의 doctor 부서가 있으면 그걸 사용
+  var found = DeptRegistry.listByKind('doctor').filter(function(d){ return d.name==='응급실'; })[0];
+  var dept = found || (DeptRegistry.create ? DeptRegistry.create('응급실','doctor') : null);
+  if(dept){ if(window.ErRosterStore) ErRosterStore.setDeptId(dept.id); return dept.id; }
+  return '';
+}
 function _erMembers(){
   if(!_erDept || !window.PersonsStore) return [];
   return PersonsStore.listByDept(_erDept);
 }
-function initials(n){ return (n||'?').trim().charAt(0) || '?'; }
-
-function renderDeptSel(){
-  var sel=document.getElementById('erDeptSel');
-  var depts=_doctorDepts();
-  if(!depts.length){ sel.innerHTML='<option value="">(의사과 부서 없음)</option>'; return; }
-  sel.innerHTML='<option value="">— 선택 —</option>'+depts.map(function(d){
-    return '<option value="'+escapeHtml(d.id)+'"'+(d.id===_erDept?' selected':'')+'>'+escapeHtml(d.name)+'</option>';
-  }).join('');
+// 인원 추가 후보 = 미배치(소속 없음) 의사 직군. ER 부서에 아직 안 들어간 사람.
+function _candidates(){
+  if(!window.PersonsStore) return [];
+  return PersonsStore.list().filter(function(p){
+    if(p.membership) return false;             // 이미 어느 부서엔가 소속
+    return p.jobClass==='doctor';              // 의사 직군만
+  });
 }
+function initials(n){ return (n||'?').trim().charAt(0) || '?'; }
 
 function renderRoster(){
   var box=document.getElementById('rosterList');
   var cnt=document.getElementById('rosterCount');
   var mem=_erMembers();
   cnt.textContent='('+mem.length+'명)';
-  if(!_erDept){
-    box.innerHTML='<div class="empty" style="font-size:14px;color:var(--text3);padding:8px;line-height:1.6">'
-      +'위에서 <b>응급실 부서</b>를 먼저 선택하세요.<br>응급의학과 부서가 없으면 부서 선택 화면에서 의사과로 개설하고, 직원관리에서 의사를 배치하세요.</div>';
-    return;
-  }
+
+  var html='';
+  // 멤버 목록
   if(!mem.length){
-    box.innerHTML='<div class="empty" style="font-size:14px;color:var(--text3);padding:8px">이 부서 소속 의사가 없습니다. 직원관리에서 배치하세요.</div>';
-    return;
+    html += '<div class="empty" style="font-size:14px;color:var(--text3);padding:8px;line-height:1.6">'
+      +'아직 응급실 당직 인원이 없습니다.<br>아래 “＋ 인원 추가”로 미배치 의사를 배치하세요.</div>';
+  } else {
+    html += mem.map(function(p){
+      var da=(p.deptAttrs&&p.deptAttrs[_erDept])?p.deptAttrs[_erDept]:{};
+      var col=da.color||'#C0392B';
+      var sp=da.specialty||'';
+      var sel=(p.personId===_selPid);
+      return '<div class="erm'+(sel?' sel':'')+'" data-pid="'+escapeHtml(p.personId)+'">'
+        +  '<span class="avatar" style="background:'+col+'22;color:'+col+'">'+(p.photo?'<img src="'+escapeHtml(p.photo)+'" alt="">':escapeHtml(initials(p.name)))+'</span>'
+        +  '<span class="nm">'+escapeHtml(p.name||'?')+'</span>'
+        +  (sp?'<span class="sp">'+escapeHtml(sp)+'</span>':'')
+        +  '<label class="ercolor" title="당직표 색 변경" style="background:'+col+'"><input type="color" value="'+col+'" data-pid="'+escapeHtml(p.personId)+'"></label>'
+        +  '<button class="ermdel" data-pid="'+escapeHtml(p.personId)+'" title="응급실에서 제외">✕</button>'
+        +  '</div>';
+    }).join('');
   }
-  box.innerHTML=mem.map(function(p){
-    var da=(p.deptAttrs&&p.deptAttrs[_erDept])?p.deptAttrs[_erDept]:{};
-    var col=da.color||'#C0392B';
-    var sp=da.specialty||'';
-    var sel=(p.personId===_selPid);
-    return '<div class="erm'+(sel?' sel':'')+'" data-pid="'+escapeHtml(p.personId)+'">'
-      +  '<span class="avatar" style="background:'+col+'22;color:'+col+'">'+(p.photo?'<img src="'+escapeHtml(p.photo)+'" alt="">':escapeHtml(initials(p.name)))+'</span>'
-      +  '<span class="nm">'+escapeHtml(p.name||'?')+'</span>'
-      +  (sp?'<span class="sp">'+escapeHtml(sp)+'</span>':'')
-      +  '<label class="ercolor" title="당직표 색 변경" style="background:'+col+'"><input type="color" value="'+col+'" data-pid="'+escapeHtml(p.personId)+'"></label>'
-      +  '</div>';
-  }).join('');
+  // 인원 추가 영역 (미배치 의사)
+  var cand=_candidates();
+  html += '<details class="eradd"><summary>＋ 인원 추가</summary>'
+    + '<div class="eradd-body">';
+  if(!cand.length){
+    html += '<div class="empty" style="font-size:13px;color:var(--text3);padding:6px">배치 가능한 미배치 의사가 없습니다. (직원관리에서 의사 직군으로 등록 후 소속을 비워두면 여기 후보로 나옵니다.)</div>';
+  } else {
+    html += '<select id="erAddSel" style="width:100%;padding:7px;border:1px solid var(--bd2);border-radius:7px;font-size:14px;font-family:inherit;margin-bottom:8px;">'
+      + cand.map(function(p){ return '<option value="'+escapeHtml(p.personId)+'">'+escapeHtml(p.name||p.personId)+'</option>'; }).join('')
+      + '</select>'
+      + '<button class="toolbtn" id="erAddBtn" style="width:100%">이 의사를 응급실에 배치</button>';
+  }
+  html += '</div></details>';
+  box.innerHTML = html;
+
+  // 멤버 클릭 = 당직 배치용 선택
   Array.prototype.forEach.call(box.querySelectorAll('.erm'), function(el){
     el.addEventListener('click', function(){
       var pid=el.getAttribute('data-pid');
@@ -172,7 +203,7 @@ function renderRoster(){
       renderRoster();
     });
   });
-  // 색 선택 — 사람 선택 클릭과 분리(stopPropagation), 변경 시 deptAttrs.color 저장 후 재렌더
+  // 색 선택
   Array.prototype.forEach.call(box.querySelectorAll('.ercolor'), function(lab){
     lab.addEventListener('click', function(e){ e.stopPropagation(); });
     var inp=lab.querySelector('input[type=color]');
@@ -189,6 +220,31 @@ function renderRoster(){
       });
     }
   });
+  // 제외 버튼
+  Array.prototype.forEach.call(box.querySelectorAll('.ermdel'), function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      var pid=btn.getAttribute('data-pid');
+      var p=PersonsStore.get(pid);
+      if(!p) return;
+      if(!confirm((p.name||'이 의사')+' 님을 응급실 당직 인원에서 제외할까요?\n(직원관리에는 미배치 상태로 남습니다.)')) return;
+      PersonsStore.setMembership(pid, null);      // 소속 해제 → 미배치로
+      if(_selPid===pid) _selPid=null;
+      renderRoster(); renderCalendar();
+    });
+  });
+  // 인원 추가 버튼
+  var addBtn=document.getElementById('erAddBtn');
+  if(addBtn){
+    addBtn.addEventListener('click', function(){
+      var sel=document.getElementById('erAddSel');
+      var pid=sel && sel.value;
+      if(!pid) return;
+      PersonsStore.setMembership(pid, _erDept);                       // ER 부서 소속으로
+      PersonsStore.setDeptAttrs(pid, _erDept, { active:true });       // 활성
+      renderRoster(); renderCalendar();
+    });
+  }
 }
 
 function renderCalendar(){
@@ -297,19 +353,11 @@ function resetMonth(){
 }
 
 if(window.CalendarStore && CalendarStore.load) CalendarStore.load();
-_erDept = ErRosterStore.getDeptId() || '';
-if(_erDept && (!DeptRegistry.get(_erDept) || DeptRegistry.get(_erDept).kind!=='doctor')) _erDept='';
-if(!_erDept){ var dd=_doctorDepts(); if(dd.length===1){ _erDept=dd[0].id; ErRosterStore.setDeptId(_erDept); } }
+_erDept = _ensureErDept();   // 응급실 전용 부서 확보(없으면 생성)
 _applyCalWidth(_curCalWidth());
-renderDeptSel();
 renderRoster();
 renderCalendar();
 
-document.getElementById('erDeptSel').addEventListener('change', function(){
-  _erDept=this.value; _selPid=null;
-  ErRosterStore.setDeptId(_erDept);
-  renderRoster(); renderCalendar();
-});
 document.getElementById('prevM').addEventListener('click', function(){ shiftMonth(-1); });
 document.getElementById('nextM').addEventListener('click', function(){ shiftMonth(1); });
 document.getElementById('todayB').addEventListener('click', function(){ viewY=_today.getFullYear(); viewM=_today.getMonth(); renderCalendar(); });
@@ -321,12 +369,13 @@ document.getElementById('calWide').addEventListener('click', function(){ _stepCa
 <script>
 window.UGUIDE_ITEMS = [{
   icon:'🚑', title:'응급실 당직표 사용 가이드',
-  html:'<p><b>응급실 부서 선택</b> — 상단에서 응급의학과 부서를 고르면 그 소속 의사가 왼쪽에 나옵니다.</p>'
-    +'<p><b>당직 배치</b> — 왼쪽에서 의사를 클릭해 선택한 뒤, 달력 날짜를 클릭하면 그날 당직으로 찍힙니다(하루 1명, 24시간). 같은 날 다시 클릭하면 해제.</p>'
-    +'<p><b>공유</b> — 여기 당직의 성씨가 내과계·외과계 등 다른 의사과 스케줄의 날짜 옆에 자동 표시됩니다.</p>'
+  html:'<p><b>인원 추가</b> — 오른쪽 “＋ 인원 추가”에서 미배치 의사를 골라 응급실 인원으로 배치합니다. 응급실은 독립 부서라 다른 의사과와 인원이 겹치지 않습니다.</p>'
+    +'<p><b>당직 배치</b> — 추가한 의사를 클릭해 선택한 뒤, 달력 날짜를 클릭하면 그날 당직으로 찍힙니다(하루 1명, 24시간). 같은 날 다시 클릭하면 해제.</p>'
+    +'<p><b>색·제외</b> — 각 의사 옆 동그라미로 당직표 색을 바꾸고, ✕로 응급실에서 제외(직원관리엔 미배치로 남음)합니다.</p>'
+    +'<p><b>공유</b> — 당직의 성씨가 내과계·외과계 등 다른 의사과 스케줄의 날짜 옆에 자동 표시됩니다.</p>'
 }];
 </script>
-<script src="../shared/uguide.js?v=6495"></script>
-<script src="../shared/version.js?v=6495"></script>
+<script src="../shared/uguide.js?v=6496"></script>
+<script src="../shared/version.js?v=6496"></script>
 </body>
 </html>
