@@ -60,6 +60,8 @@
       out.bg = COLOR.consultBg; out.textColor = COLOR.consultText;
     } else if(cell.endo){
       out.bg = COLOR.endoBg; out.textColor = COLOR.endoText;
+    } else if(cell.work && !cell.erCall){
+      out.bg = '#EAF5EE'; out.textColor = '#1A7A47';   // 명시적 근무 — 옅은 초록
     }
 
     // 2) 좌측 빨강 띠 — (X) block (색 무관 중첩)
@@ -105,7 +107,10 @@
     if(cell.consult) tags.push('협진');
     if(cell.memo)    tags.push(String(cell.memo));
     var suf = tags.length ? '('+tags.join('·')+')' : '';
-    return pre + suf;
+    var out = pre + suf;
+    // 다른 표기가 전혀 없고 명시적 근무(work)만 있으면 '근무'로 표시(빈칸과 구별)
+    if(!out && cell.work && cell.status!=='휴진') return '근무';
+    return out;
   }
 
   g.DocRender = { render: render, badgeStyle: badgeStyle, lineText: lineText, COLOR: COLOR };

@@ -82,7 +82,7 @@
         <span style="font-size:13px;color:var(--text2);margin-right:2px;">붓:</span>
       </div>
       <div style="font-size:13px;color:var(--text3);margin-bottom:8px;">
-        붓을 고르고 칸(오전/오후)을 클릭하면 칠해집니다. 단축키 1~6·0, 지우기 Backspace, 붓 해제 Esc.
+        붓을 고르고 칸(오전/오후)을 클릭하면 칠해집니다. 단축키 1~7, 지우기 Backspace, 붓 해제 Esc.
       </div>
       <div class="sheet-wrap">
         <table class="sheet" id="sheetTable"></table>
@@ -381,7 +381,7 @@ function _memberEditPanel(p){
       + 'border:'+(c===col?'2px solid #000':'1px solid #ccc')+';margin:1px"></span>';
   }).join('');
   // 요일고정 v2: 요일별 오전/오후 코드 + 적용 주차(1~5)
-  var fwCodes = [['','—'],['off','휴진'],['dcall','D콜'],['ncall','N콜'],['endo','내시경'],['consult','협진']];
+  var fwCodes = [['','—'],['work','근무'],['off','휴진'],['dcall','D콜'],['ncall','N콜'],['endo','내시경'],['consult','협진']];
   function fwSel(wk, slot, cur){
     var opts = fwCodes.map(function(c){ return '<option value="'+c[0]+'"'+(c[0]===cur?' selected':'')+'>'+c[1]+'</option>'; }).join('');
     return '<select onchange="outSetFWSlot(\''+p.personId+'\',\''+wk+'\',\''+slot+'\',this.value)" '
@@ -524,6 +524,7 @@ function _weekIndexOfWeekday(y, m, d){
 /* 요일고정 코드 → 슬롯 6속성 변환 */
 function _fwCodeToSlot(code){
   switch(code){
+    case 'work':    return {work:true, fixed:true};
     case 'off':     return {status:'휴진', fixed:true};
     case 'dcall':   return {erCall:'D', fixed:true};
     case 'ncall':   return {erCall:'N', fixed:true};
@@ -840,12 +841,13 @@ function renderSheet(){
 /* ── 붓 팔레트 + 칠하기 (의사 6속성) ── */
 // 각 붓 = 하나의 속성 토글. 응급콜 D/N은 배타(서로 교체), 나머지는 on/off.
 var BRUSHES = [
-  {key:'1', attr:'erCall', val:'D', label:'D 주간콜', color:'#1A8C62'},
-  {key:'2', attr:'erCall', val:'N', label:'N 야간콜', color:'#5B3FA0'},
-  {key:'3', attr:'endo',   val:true, label:'내시경', color:'#3D7FC4'},
-  {key:'4', attr:'consult',val:true, label:'협진',   color:'#C9A21A'},
-  {key:'5', attr:'block',  val:true, label:'(X) 금지', color:'#C0392B'},
-  {key:'6', attr:'status', val:'휴진', label:'휴진',  color:'#9A6618'}
+  {key:'1', attr:'work',   val:true, label:'근무', color:'#1A8C62'},
+  {key:'2', attr:'erCall', val:'D', label:'D 주간콜', color:'#1A7A47'},
+  {key:'3', attr:'erCall', val:'N', label:'N 야간콜', color:'#5B3FA0'},
+  {key:'4', attr:'endo',   val:true, label:'내시경', color:'#3D7FC4'},
+  {key:'5', attr:'consult',val:true, label:'협진',   color:'#C9A21A'},
+  {key:'6', attr:'block',  val:true, label:'(X) 금지', color:'#C0392B'},
+  {key:'7', attr:'status', val:'휴진', label:'휴진',  color:'#9A6618'}
 ];
 var _brush = null;   // 현재 붓 index(문자열 key) | '__erase' | null
 
@@ -893,10 +895,10 @@ function _writeSlot(pid, y, m, d, slot, brushKey){
   } else {
     var br = _brushByKey(brushKey); if(!br) return;
     var cur = DocScheduleStore.getSlot(pid, y, m, d, slot);
-    var nv = {erCall:cur.erCall, block:cur.block, consult:cur.consult, endo:cur.endo, status:cur.status, memo:cur.memo};
+    var nv = {work:cur.work, erCall:cur.erCall, block:cur.block, consult:cur.consult, endo:cur.endo, status:cur.status, memo:cur.memo};
     if(br.attr==='erCall'){ nv.erCall = (cur.erCall===br.val) ? '' : br.val; }       // 같은 값 재칠=해제
     else if(br.attr==='status'){ nv.status = (cur.status===br.val) ? '근무' : br.val; }
-    else { nv[br.attr] = !cur[br.attr]; }                                            // bool 토글
+    else { nv[br.attr] = !cur[br.attr]; }                                            // bool 토글(work·endo·consult·block)
     DocScheduleStore.setSlot(pid, y, m, d, slot, nv);
   }
   if(window.DocActiveRepo && DocActiveRepo.saveSchedule) DocActiveRepo.saveSchedule();
@@ -1553,7 +1555,7 @@ setTimeout(_syncCalTopHeight, 100);
 window.UGUIDE_ITEMS = [{
   icon:'📖', title:'외래 근무표 사용 가이드',
   html:'<p><b>이 부서 인원은?</b> 직원관리에서 이 부서로 배치한 의사가 왼쪽 명단에 나옵니다. 사람 추가·삭제는 직원관리에서.</p>'
-    +'<p><b>근무 칠하기</b> — 위 “붓”에서 종류(근무·연차·반차·월차·휴가·경조·OFF)를 고른 뒤 달력 칸의 오전/오후를 클릭. 숫자키 1~6·0으로 붓 변경, Backspace 지우기, Esc 붓 해제.</p>'
+    +'<p><b>근무 칠하기</b> — 위 “붓”에서 종류(1 근무·2 D콜·3 N콜·4 내시경·5 협진·6 (X)금지·7 휴진)를 고른 뒤 달력 칸의 오전/오후를 클릭. 숫자키 1~7로 붓 변경, Backspace 지우기, Esc 붓 해제. 같은 붓 재클릭=해제.</p>'
     +'<p><b>자동배치</b> — “✨ 자동배치”는 각 의사의 요일 고정근무(고정 휴진·당직·내시경·주차)를 이번 달에 일괄 반영합니다. 규칙 없는 날은 근무로 둡니다(의사 셀은 빈칸=근무). 직접 입력한 칸은 보존됩니다.</p>'
     +'<p><b>요일 고정·색</b> — 의사 카드를 펼쳐 요일 고정근무·색 지정. 색은 달력 이름에 반영. 이달 생일자는 🎂.</p>'
     +'<p><b>보기·폭</b> — 달력형/명단형 전환, 우측 “＋／－”로 표 폭 조절.</p>'

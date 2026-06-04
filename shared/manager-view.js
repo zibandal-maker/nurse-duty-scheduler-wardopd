@@ -87,6 +87,7 @@
     if(s.status==='휴진') parts.push('휴진');
     if(s.endo) parts.push('내시경');
     if(s.consult) parts.push('협진');
+    if(!parts.length && s.work && s.status!=='휴진') parts.push('근무');
     return parts.join(' ');
   }
   function _docLabel(cell){

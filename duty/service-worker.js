@@ -1,6 +1,6 @@
 // Nurse Duty Scheduler — Service Worker
 // 버전 변경 시 캐시가 새로 빌드됨. 배포 시 CACHE_VERSION 증가시킬 것.
-const CACHE_VERSION = 'duty-scheduler-v3.49.0';
+const CACHE_VERSION = 'duty-scheduler-v3.50.0';
 
 // 캐싱 대상 (오프라인 동작에 필요한 핵심 파일)
 const CORE_ASSETS = [

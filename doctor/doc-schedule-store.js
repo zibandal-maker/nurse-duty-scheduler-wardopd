@@ -36,10 +36,11 @@
   var docSchedule = {};   // { 'personId|y|m|d': {am, pm} }
 
   function _emptySlot(){
-    return { erCall:'', block:false, consult:false, endo:false, status:'근무', memo:'' };
+    return { work:false, erCall:'', block:false, consult:false, endo:false, status:'근무', memo:'' };
   }
   function _slotEmpty(s){
     if(!s) return true;
+    if(s.work) return false;
     if(s.erCall) return false;
     if(s.block) return false;
     if(s.consult) return false;
@@ -53,6 +54,7 @@
     var er = (s.erCall==='D'||s.erCall==='N') ? s.erCall : '';
     var st = (s.status==='휴진') ? '휴진' : '근무';
     return {
+      work:!!s.work,   // 명시적 '근무' 표시 (빈칸과 구별)
       erCall:er, block:!!s.block, consult:!!s.consult,
       endo:!!s.endo, status:st, memo:(s.memo!=null)?String(s.memo):'',
       fixed:!!s.fixed   // 요일고정으로 채워진 슬롯 표시 (재배치 시 구분)
