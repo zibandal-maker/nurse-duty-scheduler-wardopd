@@ -135,13 +135,15 @@
       <div id="calCards" style="display:contents"></div>
       <!-- M6: 의사과(doctor) 부서 — 레지스트리 kind=doctor 동적 렌더 -->
       <div id="doctorCards" style="display:contents"></div>
+      <!-- 행정·기타(admin) 부서 — 레지스트리 kind=admin 동적 렌더. 화면은 외래 calendar 공유 -->
+      <div id="adminCards" style="display:contents"></div>
       <!-- 통합 개설 카드 (항상 가장 뒤) -->
       <a class="card cal live" id="newDeptCardUnified" href="#"
         style="display:flex;flex-direction:column;align-items:center;justify-content:center;
         border-style:dashed;color:var(--navy);min-height:120px;">
         <span class="ico" style="margin-bottom:6px">＋</span>
         <h2 style="font-size:16px">새 부서 개설</h2>
-        <p style="text-align:center">병동·외래·의사과</p>
+        <p style="text-align:center">병동·외래·의사과·행정</p>
       </a>
     </div>
 
@@ -157,6 +159,8 @@
             <span style="font-size:20px">🔄</span><span><b>외래</b> <span style="color:var(--muted);font-size:13px">— 오전·오후 비교대</span></span></button>
           <button type="button" class="kindmenu-opt" data-k="doctor" style="display:flex;align-items:center;gap:10px;padding:12px 14px;border:1.5px solid var(--line);background:#fff;border-radius:10px;font-size:15px;cursor:pointer;text-align:left;">
             <span style="font-size:20px">🩺</span><span><b>의사과</b> <span style="color:var(--muted);font-size:13px">— 내과계·정형·응급의학과 등</span></span></button>
+          <button type="button" class="kindmenu-opt" data-k="admin" style="display:flex;align-items:center;gap:10px;padding:12px 14px;border:1.5px solid var(--line);background:#fff;border-radius:10px;font-size:15px;cursor:pointer;text-align:left;">
+            <span style="font-size:20px">🗂️</span><span><b>행정·기타</b> <span style="color:var(--muted);font-size:13px">— 원무·총무 등 일반 부서</span></span></button>
         </div>
         <div style="display:flex;justify-content:flex-end;margin-top:14px;">
           <button id="newKindCancel" style="padding:9px 16px;border:1px solid var(--line);background:#fff;border-radius:9px;font-size:14px;cursor:pointer;">취소</button>
@@ -173,6 +177,7 @@
           <button type="button" class="kindopt" data-k="duty" style="flex:1;padding:8px;border:1.5px solid var(--line);background:#fff;color:var(--text);border-radius:8px;font-size:13px;cursor:pointer;">병동</button>
           <button type="button" class="kindopt on" data-k="outpatient" style="flex:1;padding:8px;border:1.5px solid var(--navy);background:var(--navy);color:#fff;border-radius:8px;font-size:13px;cursor:pointer;">외래</button>
           <button type="button" class="kindopt" data-k="doctor" style="flex:1;padding:8px;border:1.5px solid var(--line);background:#fff;color:var(--text);border-radius:8px;font-size:13px;cursor:pointer;">의사</button>
+          <button type="button" class="kindopt" data-k="admin" style="flex:1;padding:8px;border:1.5px solid var(--line);background:#fff;color:var(--text);border-radius:8px;font-size:13px;cursor:pointer;">행정</button>
         </div>
         <input id="newDeptName" type="text" placeholder="부서 이름" maxlength="20"
           style="width:100%;padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px;margin-bottom:14px;box-sizing:border-box;">
@@ -433,6 +438,33 @@
       });
     });
   }
+  // 행정·기타(admin) 부서 카드 — 외래 카드 본뜸. 화면은 외래 calendar/index.html 공유(?dept=).
+  function renderAdminCards(){
+    var box = document.getElementById('adminCards');
+    if(!box) return;
+    var depts = (window.DeptRegistry) ? DeptRegistry.listByKind('admin') : [];
+    var html = depts.map(function(d){
+      return '<div class="card cal live" style="position:relative;">'
+        + '<button class="deptGear" data-id="'+encodeURIComponent(d.id)+'" data-name="'+encodeURIComponent(d.name)+'" '
+        +   'title="부서 관리 (이름변경·삭제)" '
+        +   'style="position:absolute;top:10px;right:10px;z-index:2;border:0;background:rgba(255,255,255,.85);border-radius:7px;width:28px;height:28px;cursor:pointer;font-size:14px;line-height:1;">⚙</button>'
+        + '<a href="./calendar/index.html?dept='+encodeURIComponent(d.id)+'" style="text-decoration:none;color:inherit;display:block;">'
+        + '<span class="accent"></span>'
+        + '<span class="ico">🗂️</span>'
+        + '<h2>'+escapeHtml(d.name)+'</h2>'
+        + _todayRosterHtml(d.id)
+        + '<span class="go">바로가기 →</span>'
+        + '</a>'
+        + '</div>';
+    }).join('');
+    box.innerHTML = html;
+    Array.prototype.forEach.call(box.querySelectorAll('.deptGear'), function(btn){
+      btn.addEventListener('click', function(e){
+        e.preventDefault(); e.stopPropagation();
+        openDeptManage(decodeURIComponent(btn.getAttribute('data-id')), decodeURIComponent(btn.getAttribute('data-name')));
+      });
+    });
+  }
   function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g,function(c){
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 
@@ -460,13 +492,15 @@
       if(window.DeptRegistry){
         var rec = DeptRegistry.create(name, _newKind);
         if(rec){ closeDlg();
-          renderDutyCards(); renderCalCards(); renderDoctorCards();
+          renderDutyCards(); renderCalCards(); renderDoctorCards(); renderAdminCards();
           if(_newKind==='outpatient'){
             location.href = './calendar/index.html?dept='+encodeURIComponent(rec.id);
           } else if(_newKind==='doctor'){
             location.href = './doctor/index.html?dept='+encodeURIComponent(rec.id);
           } else if(_newKind==='duty'){
             location.href = './duty/index.html?ward='+encodeURIComponent(rec.id);
+          } else if(_newKind==='admin'){
+            location.href = './calendar/index.html?dept='+encodeURIComponent(rec.id);
           } else {
             alert('['+name+'] 부서를 개설했습니다.\n직원관리에서 인원을 이 부서로 배치하세요.');
           }
@@ -501,6 +535,7 @@
     renderDutyCards();
     renderCalCards();
     renderDoctorCards();
+    renderAdminCards();
   })();
 
   // M5c: 부서 관리 — 이름변경 + 삭제(데이터·소속 정리)
@@ -519,14 +554,14 @@
     document.getElementById('dmRenameBtn').addEventListener('click', function(){
       var nm = (document.getElementById('dmRenameInput').value||'').trim();
       if(!nm || !_dmId) return;
-      if(window.DeptRegistry && DeptRegistry.rename(_dmId, nm)){ renderDutyCards(); renderCalCards(); renderDoctorCards(); close(); }
+      if(window.DeptRegistry && DeptRegistry.rename(_dmId, nm)){ renderDutyCards(); renderCalCards(); renderDoctorCards(); renderAdminCards(); close(); }
     });
     document.getElementById('dmDeleteBtn').addEventListener('click', function(){
       if(!_dmId) return;
       var nm = document.getElementById('dmName').textContent;
       if(!confirm('['+nm+'] 부서를 삭제합니다.\n\n· 이 부서 근무표가 모두 삭제됩니다.\n· 소속 인원은 부서에서 빠집니다(직원은 직원관리에 유지).\n\n계속할까요?')) return;
       deleteDept(_dmId);
-      renderDutyCards(); renderCalCards(); renderDoctorCards(); close();
+      renderDutyCards(); renderCalCards(); renderDoctorCards(); renderAdminCards(); close();
     });
   })();
 

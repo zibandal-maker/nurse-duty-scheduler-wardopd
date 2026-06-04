@@ -200,6 +200,7 @@
       <div class="fld" style="border-top:1px solid var(--line);padding-top:13px;">
         <label>소속 부서</label>
         <div class="opts" id="smMembership"></div>
+        <p class="note" id="smMembershipHint" style="margin-top:6px;color:var(--primary);font-weight:600;display:none;"></p>
         <p class="note" style="margin-top:6px;">소속은 한 부서만(배타적). 부서를 바꾸면 이전 부서 특성은 보존된 채 비활성됩니다. 외래·의사·행정 부서는 부서 선택 화면에서 개설합니다.</p>
       </div>
 
@@ -443,7 +444,17 @@ function renderJobClassOptions(){
   });
   box.innerHTML = html;
   Array.prototype.forEach.call(box.querySelectorAll('.opt'), function(o){
-    o.addEventListener('click', function(){ _selJobClass = o.getAttribute('data-v'); syncJobClassBtns(); });
+    o.addEventListener('click', function(){
+      _selJobClass = o.getAttribute('data-v');
+      syncJobClassBtns();
+      // 직군이 바뀌면 허용 부서가 달라짐 — 현재 선택이 범위 밖이면 해제하고 목록 갱신
+      var allow = JOBCLASS_DEPT_KINDS[_selJobClass] || null;
+      if(allow && _selMembership && allow.indexOf(deptKindOf(_selMembership))<0){
+        _selMembership = '';
+      }
+      renderMembershipOptions();
+      syncMembershipBtns();
+    });
   });
   syncJobClassBtns();
 }
@@ -513,19 +524,37 @@ function addJobClass(){
 })();
 // M5d/⑰: 소속 옵션을 레지스트리에서 동적 생성 — 미배정·듀티 + 등록된 부서(계열별)
 var KIND_LABEL = { duty:'병동', outpatient:'외래', doctor:'의사', admin:'행정' };
+// 직군 → 배치 가능한 부서 계열(kind) 화이트리스트.
+//   여기 키가 있는 직군만 부서 선택이 제한됨. 키 없는(사용자 추가) 직군은 전체 허용.
+//   간호: 병동·외래만 / 의사: 의사과만 / 그 외 빌트인(행정·시설·미화·기사·약무·보안): 행정(admin)만
+//   → 병동·외래·의사 스케줄 부서는 선택 불가.
+var JOBCLASS_DEPT_KINDS = {
+  nursing:  ['duty','outpatient'],
+  doctor:   ['doctor'],
+  admin:    ['admin'],
+  facility: ['admin'],
+  cleaning: ['admin'],
+  medtech:  ['admin'],
+  pharmacy: ['admin'],
+  security: ['admin']
+};
 function renderMembershipOptions(){
   var box = document.getElementById('smMembership');
   if(!box) return;
+  // 직군 제한: 화이트리스트에 있으면 그 kind만, 없으면 전체 허용(null).
+  var allowKinds = JOBCLASS_DEPT_KINDS[_selJobClass] || null;
+  function kindAllowed(k){ return !allowKinds || allowKinds.indexOf(k)>=0; }
+
   var html = '<button type="button" class="opt" data-v="">미배정</button>';
-  // 레지스트리에 등록된 듀티 병동이 없으면 기본 듀티 버튼 1개 제공(하위호환)
+  // 레지스트리에 등록된 듀티 병동이 없으면 기본 듀티 버튼 1개 제공(하위호환) — duty 허용 시에만
   var hasDutyWard = window.DeptRegistry && DeptRegistry.listByKind && DeptRegistry.listByKind('duty').length>0;
-  if(!hasDutyWard){ html += '<button type="button" class="opt" data-v="duty">듀티(병동)</button>'; }
+  if(!hasDutyWard && kindAllowed('duty')){ html += '<button type="button" class="opt" data-v="duty">듀티(병동)</button>'; }
   if(window.DeptRegistry){
     var all = DeptRegistry.list();
     // 계열별로 묶어 표시 (병동·외래·의사·행정 순)
     var order = ['duty','outpatient','doctor','admin'];
     var byKind = {};
-    all.forEach(function(d){ (byKind[d.kind]=byKind[d.kind]||[]).push(d); });
+    all.forEach(function(d){ if(kindAllowed(d.kind)) (byKind[d.kind]=byKind[d.kind]||[]).push(d); });
     var kinds = order.filter(function(k){return byKind[k];})
                      .concat(Object.keys(byKind).filter(function(k){return order.indexOf(k)<0;}));
     kinds.forEach(function(k){
@@ -536,6 +565,20 @@ function renderMembershipOptions(){
     });
   }
   box.innerHTML = html;
+  // 직군 제한 안내 문구
+  var hint = document.getElementById('smMembershipHint');
+  if(hint){
+    if(allowKinds){
+      var labs = allowKinds.map(function(k){
+        return (k==='admin') ? '행정·기타' : (KIND_LABEL[k]||k);
+      }).join('·');
+      var jcName = (window.JobClassRegistry && JobClassRegistry.name(_selJobClass)) || '';
+      hint.textContent = '※ ‘'+jcName+'’ 직군은 '+labs+' 부서만 배치할 수 있습니다.';
+      hint.style.display='';
+    } else {
+      hint.style.display='none';
+    }
+  }
   // (재)바인딩
   Array.prototype.forEach.call(box.querySelectorAll('.opt'), function(o){
     o.addEventListener('click', function(){ _selMembership = o.getAttribute('data-v'); syncMembershipBtns(); });
