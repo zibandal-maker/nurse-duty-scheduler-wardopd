@@ -7,12 +7,12 @@
 <!-- 공유 모듈: 사람 풀을 읽어 전체 인원 표시 (풀 분리 동작 확인)
      ★ ward-context.js 는 로드하지 않는다 — 듀티 전용(WARD_ID='duty' + 로드 즉시 듀티 마이그레이션).
        부서 선택 화면은 어느 부서도 아니므로 persons-store(공유 풀)만 필요하다. -->
-<script src="./shared/persons-store.js"></script>
-<script src="./shared/dept-registry.js"></script>
-<script src="./shared/utils.js"></script>
-<script src="./shared/calendar-store.js"></script>
-<script src="./calendar/cal-shifts.js"></script>
-<script src="./shared/manager-view.js"></script>
+<script src="./shared/persons-store.js?v=6491"></script>
+<script src="./shared/dept-registry.js?v=6491"></script>
+<script src="./shared/utils.js?v=6491"></script>
+<script src="./shared/calendar-store.js?v=6491"></script>
+<script src="./calendar/cal-shifts.js?v=6491"></script>
+<script src="./shared/manager-view.js?v=6491"></script>
 <style>
   :root{
     --navy:#0C447C; --navy-deep:#072F58; --navy-soft:#1E6DBF;
@@ -783,7 +783,7 @@
     ['guidePop','infoPop'].forEach(function(x){ var e2=document.getElementById(x); if(e2) e2.classList.remove('open'); });
   });
 </script>
-<script src="./shared/version.js"></script>
+<script src="./shared/version.js?v=6491"></script>
 <a href="mailto:zibandal@gmail.com?subject=[Scheduler]%20%ED%94%BC%EB%93%9C%EB%B0%B1" id="fbLink"
    title="피드백·버그 신고·기능 제안"
    style="position:fixed;right:10px;bottom:30px;z-index:9998;font-size:11px;color:var(--muted);
