@@ -63,11 +63,36 @@
     // 외래(비교대): membership 이 부서 id (outpatient_1 등) → cal_sched_<id> 에서 읽음
     var cs = _read('cal_sched_' + dept);
     var cell = cs[_cellKey(person.personId, y, m, d)] || null;
+    if(_isDoctor(dept)){
+      // 의사: doc_sched_<id> 에서 6속성 슬롯 읽음. 표시는 콜/내시경/협진/휴진 등.
+      var ds = _read('doc_sched_' + dept);
+      var dcell = ds[_cellKey(person.personId, y, m, d)] || null;
+      if(!dcell) return { dept:dept, display:'', raw:null };
+      var dlab = _docLabel(dcell);
+      return { dept:dept, display:dlab, raw:dcell };
+    }
     if(!cell) return { dept:dept, display:'', raw:null };
     var am = cell.am && cell.am.code ? _outLabel(cell.am.code) : '';
     var pm = cell.pm && cell.pm.code ? _outLabel(cell.pm.code) : '';
     var disp = (am && pm) ? (am===pm ? am : am+'/'+pm) : (am || pm || '');
     return { dept:dept, display:disp, raw:cell };
+  }
+  // 의사 부서 판정 + 의사 셀(오전/오후 6속성) → 짧은 라벨
+  function _isDoctor(dept){ return /^doctor_\d+$/.test(dept); }
+  function _slotLabel(s){
+    if(!s) return '';
+    var parts=[];
+    if(s.block) parts.push('(X)');
+    if(s.erCall==='D') parts.push('D콜'); else if(s.erCall==='N') parts.push('N콜');
+    if(s.status==='휴진') parts.push('휴진');
+    if(s.endo) parts.push('내시경');
+    if(s.consult) parts.push('협진');
+    return parts.join(' ');
+  }
+  function _docLabel(cell){
+    var am=_slotLabel(cell.am), pm=_slotLabel(cell.pm);
+    if(am && pm) return am===pm ? am : ('오전 '+am+' / 오후 '+pm);
+    return am || pm || '';
   }
 
   // 특정 하루의 부서별 근무자 명단 — 일일 현황판.
@@ -97,6 +122,14 @@
         if(!bucket.groups[code]) bucket.groups[code] = [];
         bucket.groups[code].push(p.name||'?');
         if(code==='D'||code==='E'||code==='N') bucket.working++;
+      } else if(bucket.kind==='doctor'){
+        // 의사: 표시 라벨(D콜/N콜/내시경/협진/휴진 …)로 그룹. 라벨 없으면 미입력.
+        var dl = c.display || '';
+        if(!dl) return;
+        if(!bucket.groups[dl]) bucket.groups[dl] = [];
+        bucket.groups[dl].push(p.name||'?');
+        // 휴진만 아니면 근무로 간주
+        if(dl.indexOf('휴진')<0) bucket.working++;
       } else {
         // 외래: 오전/오후 근무 라벨로 그룹 (근무/연차/반차…)
         var raw = c.raw;

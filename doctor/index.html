@@ -739,19 +739,17 @@ function renderCalendar(){
     return renderDayDoctor(d);
   }
   // 달력 한 칸: 이 부서 전원 (이름 | 오전 | 오후) 칠하기 슬롯.
-  //   일요일은 의사 근무 없음 → 무조건 비움. 공휴일은 입력 데이터가 있을 때만 그 사람 행 표시.
+  //   일요일만 비움(의사 근무 없음). 월~토는 공휴일/대체공휴일이어도 전원 입력칸 유지.
+  //   기본은 휴진/off지만 특수 근무를 자유롭게 입력할 수 있도록 칸을 항상 연다.
   function renderDayDoctor(d){
     var members = (window.OutpatientAdapter) ? OutpatientAdapter.listMembers(WARD_ID)
                   : (window.PersonsStore ? PersonsStore.listByDept(WARD_ID) : []);
     if(members.length===0) return '';
     var wd = dow(viewY, viewM, d);
-    var holi = CalendarStore.isHoliday(viewY, viewM+1, d);
     if(wd===0) return '';   // 일요일: 의사 근무 없음 — 칸 완전히 비움(외래와 동일)
     var rows = members.map(function(p){
       var pid=p.personId;
       var cell = DocScheduleStore.get(pid, viewY, viewM, d);
-      // 공휴일: 입력 없는 사람 행은 만들지 않음(가끔 근무만 표시)
-      if(holi && DocScheduleStore.slotEmpty(cell.am) && DocScheduleStore.slotEmpty(cell.pm)) return '';
       var pcol = colorOf[pid] || '';
       var nameStyle = pcol
         ? ' style="background:'+pcol+'22;border-left:3px solid '+pcol+';padding-left:5px;border-radius:3px;"'
@@ -761,8 +759,7 @@ function renderCalendar(){
         +   '<span class="slot am slotcell" data-pid="'+pid+'" data-day="'+d+'" data-slot="am">'+slotBadge(cell.am)+'</span>'
         +   '<span class="slot pm slotcell" data-pid="'+pid+'" data-day="'+d+'" data-slot="pm">'+slotBadge(cell.pm)+'</span>'
         + '</div>';
-    }).filter(Boolean);
-    if(!rows.length) return '';
+    });
     return '<div class="staffwrap">'+rows.join('')+'</div>';
   }
   function slotBadge(slot){ return _slotBadge(slot); }

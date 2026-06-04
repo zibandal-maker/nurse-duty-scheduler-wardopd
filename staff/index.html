@@ -54,6 +54,33 @@
        color:var(--primary-d);font-weight:700;display:inline-flex;align-items:center;justify-content:center;
        font-size:13px;overflow:hidden;}
   .stafftable .pavatar img{width:100%;height:100%;object-fit:cover;}
+  /* 부서 카드 + 2열 멤버 그리드 (신규 레이아웃) */
+  #staffTable{display:flex;flex-direction:column;gap:14px;}
+  .deptcard{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--bg);}
+  .deptcard-hd{cursor:pointer;user-select:none;padding:10px 14px;background:#f3f6fb;font-size:14px;
+       display:flex;align-items:center;gap:6px;border-left:3px solid var(--line);}
+  .deptcard-hd:hover{background:#eaf0f8;}
+  .deptcard.duty .deptcard-hd{background:#eef4fc;border-left-color:#0C447C;}
+  .deptcard.outpatient .deptcard-hd{background:#fbf3ec;border-left-color:#9A5B16;}
+  .deptcard.doctor .deptcard-hd{background:#eef7f2;border-left-color:#1A8C62;}
+  .deptcard.admin .deptcard-hd{background:#f1f0f5;border-left-color:#5B3FA0;}
+  .deptcard-hd .caret{width:14px;color:var(--text2);font-size:10px;}
+  .deptcard-hd .gcount{font-size:12px;color:var(--text2);font-weight:600;margin-left:4px;}
+  .membergrid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);}
+  @media(max-width:640px){ .membergrid{grid-template-columns:1fr;} }
+  .memcard{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--bg);cursor:pointer;
+       transition:background .12s;}
+  .memcard:hover{background:var(--primary-bg);}
+  .memcard .pavatar{width:34px;height:34px;border-radius:50%;background:var(--primary-bg);flex:0 0 auto;
+       color:var(--primary-d);font-weight:700;display:inline-flex;align-items:center;justify-content:center;
+       font-size:13px;overflow:hidden;}
+  .memcard .pavatar img{width:100%;height:100%;object-fit:cover;}
+  .memcard .memmain{flex:1 1 auto;min-width:0;}
+  .memcard .memname{display:flex;align-items:center;gap:6px;font-size:14px;flex-wrap:wrap;}
+  .memcard .memname b{white-space:nowrap;}
+  .memcard .memsub{font-size:11.5px;color:var(--text2);margin-top:1px;}
+  .memcard .jcbadge{font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;white-space:nowrap;}
+  .memcard .editbtn{flex:0 0 auto;}
   .badge-dept{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;}
   .badge-dept.duty{background:#E6F1FB;color:#0C447C;}
   .badge-dept.outpatient{background:#FAEEDA;color:#A35200;}
@@ -130,7 +157,7 @@
       <h2>직원 명부 <span class="cnt" id="staffCount">—</span></h2>
       <button class="add" id="btnAdd">+ 신규 등록</button>
     </div>
-    <table class="stafftable" id="staffTable"></table>
+    <div id="staffTable"></div>
   </div>
 
   <details class="diag-wrap">
@@ -318,7 +345,7 @@ function renderList(){
   document.getElementById('staffCount').textContent = people.length+'명';
   var tbl = document.getElementById('staffTable');
   if(people.length===0){
-    tbl.innerHTML = '<tr><td><div class="empty">등록된 직원이 없습니다. [+ 신규 등록]으로 추가하세요.</div></td></tr>';
+    tbl.innerHTML = '<div class="empty">등록된 직원이 없습니다. [+ 신규 등록]으로 추가하세요.</div>';
     return;
   }
   // 부서별 그룹핑
@@ -349,38 +376,49 @@ function renderList(){
     members.sort(function(a,b){ return (a.name||'').localeCompare(b.name||'', 'ko'); });
     var collapsed = !!_collapsedDepts[k];
     var kindCls = !k ? 'none' : (k==='duty'||/^duty_\d+$/.test(k) ? 'duty' : String(k).split('_')[0]);
-    // 부서 헤더 행 (클릭으로 접기/펴기)
-    html += '<tr class="deptgroup '+kindCls+'" data-dept="'+escapeHtml(k)+'">'
-      + '<td colspan="5"><span class="caret">'+(collapsed?'▶':'▼')+'</span> '
-      + '<b>'+escapeHtml(deptName(k))+'</b> <span class="gcount">'+members.length+'명</span></td></tr>';
-    if(collapsed) return;
-    members.forEach(function(p){
-      var av = p.photo ? '<span class="pavatar"><img src="'+escapeHtml(p.photo)+'"></span>'
-                       : '<span class="pavatar">'+escapeHtml(initial(p.name))+'</span>';
-      var mgr = p.isManager ? '<span class="badge-mgr">관리</span>' : '';
-      var jcBadge = '';
-      if(p.jobClass && window.JobClassRegistry){
-        var jc = JobClassRegistry.get(p.jobClass);
-        if(jc) jcBadge = '<span style="font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;background:'+jc.color+'1f;color:'+jc.color+';">'+escapeHtml(jc.name)+'</span>';
-      }
-      var vac = (typeof p.vacTotal==='number') ? p.vacTotal+'일' : '—';
-      html += '<tr class="memberrow">'
-        + '<td><div style="display:flex;align-items:center;gap:8px;padding-left:14px;">'+av+'<b>'+escapeHtml(p.name||'(이름없음)')+'</b>'+jcBadge+mgr+'</div></td>'
-        + '<td>'+deptBadge(p.membership)+'</td>'
-        + '<td>'+escapeHtml(p.birthday||'—')+'</td>'
-        + '<td class="r">'+vac+'</td>'
-        + '<td class="r"><button class="editbtn" data-pid="'+escapeHtml(p.personId)+'">편집</button></td>'
-        + '</tr>';
-    });
+    // 부서 카드 — 헤더(클릭 접기/펴기) + 2열 멤버 그리드
+    html += '<div class="deptcard '+kindCls+'">'
+      + '<div class="deptcard-hd" data-dept="'+escapeHtml(k)+'">'
+      +   '<span class="caret">'+(collapsed?'▶':'▼')+'</span> '
+      +   '<b>'+escapeHtml(deptName(k))+'</b> <span class="gcount">'+members.length+'명</span>'
+      + '</div>';
+    if(!collapsed){
+      html += '<div class="membergrid">';
+      members.forEach(function(p){
+        var av = p.photo ? '<span class="pavatar"><img src="'+escapeHtml(p.photo)+'"></span>'
+                         : '<span class="pavatar">'+escapeHtml(initial(p.name))+'</span>';
+        var mgr = p.isManager ? '<span class="badge-mgr">관리</span>' : '';
+        var jcBadge = '';
+        if(p.jobClass && window.JobClassRegistry){
+          var jc = JobClassRegistry.get(p.jobClass);
+          if(jc) jcBadge = '<span class="jcbadge" style="background:'+jc.color+'1f;color:'+jc.color+';">'+escapeHtml(jc.name)+'</span>';
+        }
+        var vac = (typeof p.vacTotal==='number') ? '연차 '+p.vacTotal+'일' : '';
+        var bday = p.birthday ? p.birthday : '';
+        var sub = [bday, vac].filter(Boolean).join(' · ');
+        html += '<div class="memcard" data-pid="'+escapeHtml(p.personId)+'">'
+          +   av
+          +   '<div class="memmain">'
+          +     '<div class="memname"><b>'+escapeHtml(p.name||'(이름없음)')+'</b>'+jcBadge+mgr+'</div>'
+          +     (sub?'<div class="memsub">'+escapeHtml(sub)+'</div>':'')
+          +   '</div>'
+          +   '<button class="editbtn" data-pid="'+escapeHtml(p.personId)+'">편집</button>'
+          + '</div>';
+      });
+      html += '</div>';
+    }
+    html += '</div>';
   });
-  var head = '<thead><tr><th>이름</th><th>소속</th><th>생일</th><th class="r">연차</th><th></th></tr></thead>';
-  tbl.innerHTML = head + '<tbody>'+html+'</tbody>';
-  // 편집 버튼
+  tbl.innerHTML = html;
+  // 편집 버튼 + 멤버 카드 클릭
   Array.prototype.forEach.call(tbl.querySelectorAll('.editbtn'), function(b){
     b.addEventListener('click', function(e){ e.stopPropagation(); openStaff(b.getAttribute('data-pid')); });
   });
-  // 부서 헤더 접기/펴기
-  Array.prototype.forEach.call(tbl.querySelectorAll('.deptgroup'), function(h){
+  Array.prototype.forEach.call(tbl.querySelectorAll('.memcard'), function(c){
+    c.addEventListener('click', function(){ openStaff(c.getAttribute('data-pid')); });
+  });
+  // 부서 카드 헤더 접기/펴기
+  Array.prototype.forEach.call(tbl.querySelectorAll('.deptcard-hd'), function(h){
     h.addEventListener('click', function(){
       var k=h.getAttribute('data-dept');
       _collapsedDepts[k]=!_collapsedDepts[k];

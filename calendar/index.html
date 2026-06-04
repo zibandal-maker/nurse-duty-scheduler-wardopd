@@ -99,12 +99,12 @@
   <div class="side-col">
   <!-- B-2: 이 부서 소속 인원 + 간호사 추가 (듀티 디자인 통일) -->
   <div class="card" id="rosterCard">
-    <div class="phdr"><span>👥 간호사 관리 <span id="rosterCount" style="font-weight:600;color:var(--text3);font-size:14px"></span></span></div>
+    <div class="phdr"><span>👥 인원 관리 <span id="rosterCount" style="font-weight:600;color:var(--text3);font-size:14px"></span></span></div>
     <div class="ncards" id="rosterList">
       <div class="empty" style="font-size:14px;color:var(--text3);padding:8px">불러오는 중…</div>
     </div>
     <details id="addDetails" class="addsec-cal">
-      <summary>＋ 간호사 추가</summary>
+      <summary>＋ 인원 추가</summary>
       <div style="padding:0 12px 12px;">
         <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:4px;">직원관리에 등록된 인원 중 선택</label>
         <select id="aPersonSel" style="width:100%;padding:6px;border:1px solid var(--bd2);border-radius:6px;font-size:14px;margin-bottom:6px;"><option value="">— 배치할 사람 선택 —</option></select>
@@ -223,12 +223,21 @@ function _getDeptFromURL(){
 }
 var WARD_ID = _getDeptFromURL();   // 예: 'outpatient_1' (URL ?dept=outpatient_1)
 var WARD_NAME = '';                 // 표시용 부서명 (레지스트리에서)
+var WARD_KIND = '';                 // 부서 계열 (outpatient | admin | …) — 직급 목록 분기용
 (function _resolveWard(){
   if(!WARD_ID) return;  // 무효 진입은 부팅 후 _guardDept()에서 안내
   var rec = (window.DeptRegistry && DeptRegistry.get) ? DeptRegistry.get(WARD_ID) : null;
-  if(rec) WARD_NAME = rec.name;
+  if(rec){ WARD_NAME = rec.name; WARD_KIND = rec.kind || ''; }
 })();
 function calKey(base){ return base + '_' + WARD_ID; }   // 예: calKey('cal_sched') → 'cal_sched_outpatient_1'
+
+// 부서 계열별 직급 목록. 행정(admin)=사원·대리·주임·과장·부장 / 그 외=간호사 직급.
+var ADMIN_ROLES = ['사원','대리','주임','과장','부장'];
+function _roleList(){
+  if(WARD_KIND==='admin') return ADMIN_ROLES;
+  return window.ROLES || ['수간호사','주임','차지','평간호사','신규간호사'];
+}
+function _defaultRole(){ return WARD_KIND==='admin' ? '사원' : '평간호사'; }
 
 /* ── M2a 자가진단: 배선이 됐는지만 확인 (데이터 변경 없음) ── */
 
@@ -255,11 +264,11 @@ function renderRoster(){
   if(countEl) countEl.textContent = '('+people.length+'명)';
   if(people.length === 0){
     listEl.innerHTML = '<div class="empty" style="font-size:14px;color:var(--text3);padding:10px;line-height:1.5">'
-      + '아직 이 부서 소속 간호사가 없습니다.<br>아래 “＋ 간호사 추가”로 직원관리에 등록된 인원을 배치하세요.</div>';
+      + '아직 이 부서 소속 인원이 없습니다.<br>아래 “＋ 인원 추가”로 직원관리에 등록된 인원을 배치하세요.</div>';
   } else {
     listEl.innerHTML = people.map(function(p){
       var da = (p.deptAttrs && p.deptAttrs[WARD_ID]) ? p.deptAttrs[WARD_ID] : {};
-      var role = da.role || '평간호사';
+      var role = da.role || _defaultRole();
       var preg = da.attributes && da.attributes.pregnant;
       var fw = (da.attributes && da.attributes.fixedWeekday) ? da.attributes.fixedWeekday : {};
       var hasFixed = Object.keys(fw).length>0;
@@ -382,12 +391,12 @@ function onMemberDrop(e, pid){
 }
 function _memberEditPanel(p){
   var da = (p.deptAttrs && p.deptAttrs[WARD_ID]) ? p.deptAttrs[WARD_ID] : {};
-  var role = da.role || '평간호사';
+  var role = da.role || _defaultRole();
   var attrs = da.attributes || {};
   var preg = !!attrs.pregnant;
   var fw = attrs.fixedWeekday || {};
   var col = da.color || '#2980B9';
-  var ROLES_LIST = window.ROLES || ['수간호사','주임','차지','평간호사','신규간호사'];
+  var ROLES_LIST = _roleList();
   var palette = window.NCOLS || ['#2980B9'];
 
   var roleOpts = ROLES_LIST.map(function(r){ return '<option'+(r===role?' selected':'')+'>'+r+'</option>'; }).join('');
@@ -597,10 +606,11 @@ function _renderAddNurseUI(){
           return '<option value="'+p.personId+'">'+escapeHtml(p.name||p.personId)+tag+'</option>';
         }).join('');
   }
-  // 직급 5종 (기본 평간호사)
-  var ROLES_LIST = window.ROLES || ['수간호사','주임','차지','평간호사','신규간호사'];
+  // 직급 목록 (행정=사원·대리·…, 그 외=간호사 직급). 기본값도 계열별.
+  var ROLES_LIST = _roleList();
+  var defRole = _defaultRole();
   roleSel.innerHTML = ROLES_LIST.map(function(r){
-    return '<option'+(r==='평간호사'?' selected':'')+'>'+r+'</option>';
+    return '<option'+(r===defRole?' selected':'')+'>'+r+'</option>';
   }).join('');
 }
 
@@ -736,13 +746,12 @@ function renderCalendar(){
                   : (window.PersonsStore ? PersonsStore.listByDept(WARD_ID) : []);
     if(members.length===0) return '';
     var wd = dow(viewY, viewM, d);
-    var holi = CalendarStore.isHoliday(viewY, viewM+1, d);
-    var noSlot = (wd===0 || holi);   // ③ 일요일·공휴일 기본 슬롯 없음
+    var noSlot = (wd===0);   // 일요일만 슬롯 없음. 평일 공휴일/대체공휴일은 입력칸 유지(특수 근무 대응)
     var rows = members.map(function(p){
       var pid=p.personId;
       var cell = CalScheduleStore.get(pid, viewY, viewM, d);
       var hasData = (cell.am&&cell.am.code)||(cell.pm&&cell.pm.code);
-      if(noSlot && !hasData) return '';   // 빈 일요일/공휴일 칸은 사람 행 안 만듦
+      if(noSlot && !hasData) return '';   // 빈 일요일 칸은 사람 행 안 만듦
       var pcol = colorOf[pid] || '';
       var nameStyle = pcol
         ? ' style="background:'+pcol+'22;border-left:3px solid '+pcol+';padding-left:5px;border-radius:3px;"'
@@ -843,7 +852,7 @@ function renderSheet(){
   if(people.length === 0){
     tbody += '<tr><td class="namecol">—</td><td colspan="'+total
           + '" style="color:var(--text2);padding:10px;text-align:center;font-size:14px">'
-          + '이 부서 소속 간호사가 없습니다 (좌측 “＋ 간호사 추가”로 배치)</td></tr>';
+          + '이 부서 소속 인원이 없습니다 (좌측 “＋ 인원 추가”로 배치)</td></tr>';
   } else {
     people.forEach(function(p){
       var pid = p.personId;
@@ -857,8 +866,8 @@ function renderSheet(){
         var ccls = holi2 ? 'holi' : (wd2===6 ? 'satd' : (wd2===0 ? 'sund' : ''));
         var cell = (window.CalScheduleStore) ? CalScheduleStore.get(pid, viewY, viewM, d2) : null;
         var am = cell ? cell.am : null, pm = cell ? cell.pm : null;
-        // ③ 일요일·공휴일은 기본 슬롯 없음. 단, 이미 입력된 근무가 있으면 표시(대체공휴일 근무 등).
-        var noSlot = (wd2===0 || holi2);
+        // 일요일만 기본 슬롯 없음. 평일 공휴일/대체공휴일은 입력칸 유지(특수 근무 대응).
+        var noSlot = (wd2===0);
         var hasData = (am && am.code) || (pm && pm.code);
         if(noSlot && !hasData){
           tbody += '<td class="daycell '+ccls+' noslot"></td>';

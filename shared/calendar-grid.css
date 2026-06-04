@@ -161,6 +161,11 @@
        font-size:12px;text-align:center;color:#c4cfdb;box-sizing:border-box;
        border:1px dashed transparent;}
   .staffrow .slot.am{border-right:1px dashed var(--line);}
+  /* 공휴일 '＋ 당직' / '▲ 접기' 버튼 */
+  .holiadd, .holifold{display:block;width:100%;margin-top:3px;padding:2px 4px;border:1px dashed var(--bd2);
+       background:transparent;color:var(--text2);border-radius:5px;font-size:11px;cursor:pointer;
+       font-family:inherit;line-height:1.4;}
+  .holiadd:hover, .holifold:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-bg);}
   /* 슬롯형 셀 (M3d-3) */
   .slotwrap{display:flex;flex-direction:column;gap:2px;}
   .slotgrp{font-size:12px;line-height:1.3;}

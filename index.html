@@ -85,6 +85,8 @@
   .todayros .tcode.E{background:#FBF0E3;color:#9A5B16;}
   .todayros .tcode.N{background:#ECE7FA;color:#5B44C8;}
   .todayros .tcode.work{background:#E6F4EC;color:#1A7A47;}
+  .todayros .tcode.off{background:#EEF0F3;color:#7A8694;}
+  .todayros .trow.off{opacity:.72;}
   .todayros .tnames{color:var(--text2);word-break:keep-all;}
   .card p{font-size:13px; color:var(--muted); line-height:1.5}
   .card .accent{position:absolute; top:0; left:0; width:4px; height:100%}
@@ -318,8 +320,8 @@
   </div>
 
 <script>
-  // M5c: 외래(비교대) 부서 카드 — 레지스트리 기반 동적 렌더 + 개설.
-  // 오늘 그 부서 근무자 요약 (카드 안에 표시). 듀티=D/E/N/O 그룹, 외래=근무자 명단.
+  // 오늘 그 부서 근무 현황 (카드 안). 근무 형태별로 나열하고, off/휴가/연차 등 비근무는 묶어서 표시.
+  //   듀티=D/E/N + 비근무(O/연차/휴가…) / 외래=근무·반차 등 + 비근무 / 의사=D콜·N콜·내시경·협진 + 휴진.
   function _todayRosterHtml(deptId){
     if(!window.ManagerView || !ManagerView.dailyRoster) return '';
     var now=new Date();
@@ -328,20 +330,41 @@
     var bucket = r && r.byDept && r.byDept[deptId];
     if(!bucket) return '<div class="todayros empty">오늘 근무 정보 없음</div>';
     var groups = bucket.groups || {};
-    var isDuty = bucket.kind==='duty';
+    var kind = bucket.kind;
+    // 비근무로 분류할 라벨(부분일치). 그 외는 근무로 간주.
+    var OFFISH = ['OFF','off','연차','월차','반차','휴가','경조','휴진','병가','공가'];
+    function isOff(label){ return OFFISH.some(function(t){ return label.indexOf(t)>=0; }); }
     var rows=[];
-    if(isDuty){
+    var offNames=[];
+
+    if(kind==='duty'){
+      // 근무: D/E/N 순서 고정. 비근무: 나머지(O·연차·휴가 등) 묶음.
       ['D','E','N'].forEach(function(code){
         var names=(groups[code]||[]);
         if(names.length) rows.push('<div class="trow"><span class="tcode '+code+'">'+code+'</span><span class="tnames">'+escapeHtml(names.join(', '))+'</span></div>');
       });
-      if(!rows.length) rows.push('<div class="todayros empty">오늘 D/E/N 근무 없음</div>');
+      Object.keys(groups).forEach(function(k){
+        if(k==='D'||k==='E'||k==='N') return;
+        (groups[k]||[]).forEach(function(nm){ offNames.push(nm); });
+      });
     } else {
-      var names=[];
-      Object.keys(groups).forEach(function(k){ (groups[k]||[]).forEach(function(nm){ if(names.indexOf(nm)<0) names.push(nm); }); });
-      if(names.length) rows.push('<div class="trow"><span class="tcode work">근무</span><span class="tnames">'+escapeHtml(names.join(', '))+'</span></div>');
-      else rows.push('<div class="todayros empty">오늘 근무자 없음</div>');
+      // 외래·의사·행정: 근무 형태별 라벨 그대로 나열, 비근무 라벨은 묶음.
+      var workKeys = Object.keys(groups).filter(function(k){ return !isOff(k); });
+      var offKeys  = Object.keys(groups).filter(function(k){ return isOff(k); });
+      // 근무 라벨 보기 좋게 정렬(근무 먼저)
+      workKeys.sort(function(a,b){ return (a==='근무'?-1:b==='근무'?1:a.localeCompare(b)); });
+      workKeys.forEach(function(k){
+        var names=groups[k]||[];
+        if(names.length) rows.push('<div class="trow"><span class="tcode work">'+escapeHtml(k)+'</span><span class="tnames">'+escapeHtml(names.join(', '))+'</span></div>');
+      });
+      offKeys.forEach(function(k){ (groups[k]||[]).forEach(function(nm){ offNames.push(nm); }); });
     }
+
+    // 비근무 묶음 (off/휴가/연차 등)
+    if(offNames.length){
+      rows.push('<div class="trow off"><span class="tcode off">휴무</span><span class="tnames">'+escapeHtml(offNames.join(', '))+'</span></div>');
+    }
+    if(!rows.length) return '<div class="todayros empty">오늘 근무 정보 없음</div>';
     return '<div class="todayros">'+rows.join('')+'</div>';
   }
 
@@ -414,7 +437,7 @@
         + '<span class="accent"></span>'
         + '<span class="ico">🩺</span>'
         + '<h2>'+escapeHtml(d.name)+'</h2>'
-        + '<div class="todayros empty">의사 스케줄 →</div>'
+        + _todayRosterHtml(d.id)
         + '<span class="go">바로가기 →</span>'
         + '</a>'
         + '</div>';
