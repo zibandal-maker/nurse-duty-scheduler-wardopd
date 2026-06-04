@@ -49,6 +49,7 @@
       <span class="spacer" id="calHint"></span>
       <span style="display:inline-flex;align-items:center;gap:4px;margin-left:8px;">
         <button class="toolbtn" id="calCopyPrev" title="지난달 근무를 요일 기준으로 이번 달에 복사" style="padding:2px 8px">⧉ 지난달 복사</button>
+        <button class="toolbtn" id="sideToggle" title="의사 명단 접기/펴기 — 접으면 달력이 넓어집니다" style="padding:2px 8px">◧ 명단 접기</button>
         <button class="toolbtn" id="calNarrow" title="좁게" style="padding:2px 8px">−</button>
         <button class="toolbtn" id="calWide" title="넓게" style="padding:2px 8px">＋</button>
       </span>
@@ -737,14 +738,20 @@ function renderCalendar(){
     if(!window.DocScheduleStore) return '';
     return renderDayDoctor(d);
   }
-  // 달력 한 칸: ER 당직(읽기) + 이 부서 전원 (이름 | 오전 | 오후) 칠하기 슬롯
+  // 달력 한 칸: 이 부서 전원 (이름 | 오전 | 오후) 칠하기 슬롯.
+  //   일요일은 의사 근무 없음 → 무조건 비움. 공휴일은 입력 데이터가 있을 때만 그 사람 행 표시.
   function renderDayDoctor(d){
     var members = (window.OutpatientAdapter) ? OutpatientAdapter.listMembers(WARD_ID)
                   : (window.PersonsStore ? PersonsStore.listByDept(WARD_ID) : []);
     if(members.length===0) return '';
+    var wd = dow(viewY, viewM, d);
+    var holi = CalendarStore.isHoliday(viewY, viewM+1, d);
+    if(wd===0) return '';   // 일요일: 의사 근무 없음 — 칸 완전히 비움(외래와 동일)
     var rows = members.map(function(p){
       var pid=p.personId;
       var cell = DocScheduleStore.get(pid, viewY, viewM, d);
+      // 공휴일: 입력 없는 사람 행은 만들지 않음(가끔 근무만 표시)
+      if(holi && DocScheduleStore.slotEmpty(cell.am) && DocScheduleStore.slotEmpty(cell.pm)) return '';
       var pcol = colorOf[pid] || '';
       var nameStyle = pcol
         ? ' style="background:'+pcol+'22;border-left:3px solid '+pcol+';padding-left:5px;border-radius:3px;"'
@@ -754,7 +761,8 @@ function renderCalendar(){
         +   '<span class="slot am slotcell" data-pid="'+pid+'" data-day="'+d+'" data-slot="am">'+slotBadge(cell.am)+'</span>'
         +   '<span class="slot pm slotcell" data-pid="'+pid+'" data-day="'+d+'" data-slot="pm">'+slotBadge(cell.pm)+'</span>'
         + '</div>';
-    });
+    }).filter(Boolean);
+    if(!rows.length) return '';
     return '<div class="staffwrap">'+rows.join('')+'</div>';
   }
   function slotBadge(slot){ return _slotBadge(slot); }
@@ -1158,6 +1166,22 @@ function _stepCalWidth(dir){
   var nb=document.getElementById('calNarrow'), wb=document.getElementById('calWide');
   if(nb) nb.addEventListener('click', function(){ _stepCalWidth(-1); });
   if(wb) wb.addEventListener('click', function(){ _stepCalWidth(1); });
+})();
+
+// 의사 명단(좌측) 접기 토글 — 접으면 달력이 전체 폭을 씀. localStorage로 상태 유지.
+(function(){
+  var KEY='doc_side_collapsed';
+  var layout=document.querySelector('.layout');
+  var btn=document.getElementById('sideToggle');
+  if(!layout||!btn) return;
+  function apply(collapsed){
+    layout.classList.toggle('side-collapsed', collapsed);
+    btn.textContent = collapsed ? '◨ 명단 펴기' : '◧ 명단 접기';
+    try{ localStorage.setItem(KEY, collapsed?'1':'0'); }catch(_){}
+  }
+  var init=false; try{ init=(localStorage.getItem(KEY)==='1'); }catch(_){}
+  apply(init);
+  btn.addEventListener('click', function(){ apply(!layout.classList.contains('side-collapsed')); });
 })();
 
 // ⑫ 지난달 복사 — 요일 기준 매핑. 공휴일 제외, 채워진 칸 보존. 슬롯(6속성) 통째 복사.

@@ -19,14 +19,22 @@
   .erm .avatar{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;overflow:hidden;
        font-size:14px;font-weight:700;flex:0 0 auto;}
   .erm .avatar img{width:100%;height:100%;object-fit:cover;display:block;}
-  .erm .nm{font-weight:600;font-size:15px;}
-  .erm .sp{margin-left:auto;font-size:12px;color:var(--text3);}
+  .erm .nm{font-weight:600;font-size:15px;margin-right:auto;}
+  .erm .sp{font-size:12px;color:var(--text3);}
+  .erm .ercolor{margin-left:8px;width:20px;height:20px;border-radius:50%;border:1.5px solid #fff;
+       box-shadow:0 0 0 1px var(--bd2);cursor:pointer;flex:0 0 auto;position:relative;overflow:hidden;}
+  .erm .ercolor input[type=color]{position:absolute;inset:-4px;width:28px;height:28px;border:0;padding:0;
+       opacity:0;cursor:pointer;}
   .erhint{font-size:13px;color:var(--text2);background:var(--er-bg);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;}
   .erhint b{color:var(--er);}
   table.cal td.daycal{cursor:pointer;}
   table.cal td.daycal:hover{outline:2px solid var(--er);outline-offset:-2px;}
-  .ername{display:flex;align-items:center;gap:5px;margin-top:6px;font-size:16px;font-weight:700;
-          color:var(--er);background:var(--er-bg);border-radius:6px;padding:4px 8px;justify-content:center;}
+  /* ER 당직표는 일요일에도 당직이 있어 요일 칸이 균등해야 함 — 공유 CSS의 일/토 좁은 폭 무효화 */
+  table.cal{table-layout:fixed;}
+  table.cal col.col-sun, table.cal col.col-sat{width:14.28% !important;}
+  .ername{display:block;margin-top:6px;font-size:15px;font-weight:700;
+          color:var(--er);background:var(--er-bg);border-radius:6px;padding:4px 6px;text-align:center;
+          white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .erempty{margin-top:6px;font-size:12px;color:var(--text3);text-align:center;}
   .deptpick{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px;color:var(--text2);}
   .deptpick select{padding:5px 8px;border:1px solid var(--bd2);border-radius:7px;font-size:14px;font-family:inherit;}
@@ -154,6 +162,7 @@ function renderRoster(){
       +  '<span class="avatar" style="background:'+col+'22;color:'+col+'">'+(p.photo?'<img src="'+escapeHtml(p.photo)+'" alt="">':escapeHtml(initials(p.name)))+'</span>'
       +  '<span class="nm">'+escapeHtml(p.name||'?')+'</span>'
       +  (sp?'<span class="sp">'+escapeHtml(sp)+'</span>':'')
+      +  '<label class="ercolor" title="당직표 색 변경" style="background:'+col+'"><input type="color" value="'+col+'" data-pid="'+escapeHtml(p.personId)+'"></label>'
       +  '</div>';
   }).join('');
   Array.prototype.forEach.call(box.querySelectorAll('.erm'), function(el){
@@ -162,6 +171,23 @@ function renderRoster(){
       _selPid=(_selPid===pid)?null:pid;
       renderRoster();
     });
+  });
+  // 색 선택 — 사람 선택 클릭과 분리(stopPropagation), 변경 시 deptAttrs.color 저장 후 재렌더
+  Array.prototype.forEach.call(box.querySelectorAll('.ercolor'), function(lab){
+    lab.addEventListener('click', function(e){ e.stopPropagation(); });
+    var inp=lab.querySelector('input[type=color]');
+    if(inp){
+      inp.addEventListener('click', function(e){ e.stopPropagation(); });
+      inp.addEventListener('input', function(e){
+        e.stopPropagation();
+        var pid=inp.getAttribute('data-pid');
+        if(pid && window.PersonsStore && PersonsStore.setDeptAttrs){
+          PersonsStore.setDeptAttrs(pid, _erDept, { color: inp.value });
+          lab.style.background=inp.value;
+          renderRoster(); renderCalendar();
+        }
+      });
+    }
   });
 }
 
