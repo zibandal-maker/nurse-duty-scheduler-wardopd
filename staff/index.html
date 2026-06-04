@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>직원 관리</title>
-<link rel="stylesheet" href="../shared/theme.css?v=6493">
+<link rel="stylesheet" href="../shared/theme.css?v=6494">
 <style>
   *{box-sizing:border-box;}
   body{margin:0;font-family:var(--sans);background:var(--bg2);color:var(--text);line-height:1.5;}
@@ -137,7 +137,7 @@
        padding:5px 13px;font-size:12px;font-weight:600;cursor:pointer;color:var(--text2);font-family:inherit;}
   .opts .opt.on{background:var(--primary);color:#fff;border-color:var(--primary);}
 </style>
-<link rel="stylesheet" href="../shared/uguide.css?v=6493">
+<link rel="stylesheet" href="../shared/uguide.css?v=6494">
 </head>
 <body>
 <div class="topbar">
@@ -155,7 +155,10 @@
   <div class="card">
     <div class="listhead">
       <h2>직원 명부 <span class="cnt" id="staffCount">—</span></h2>
-      <button class="add" id="btnAdd">+ 신규 등록</button>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="add" id="btnToggleAll" style="background:#fff;color:var(--text2);border:1px solid var(--line);">⊕ 모두 펼치기</button>
+        <button class="add" id="btnAdd">+ 신규 등록</button>
+      </div>
     </div>
     <div id="staffTable"></div>
   </div>
@@ -293,13 +296,13 @@
   </div>
 </div>
 
-<script src="../shared/utils.js?v=6493"></script>
-<script src="../shared/persons-store.js?v=6493"></script>
-<script src="../shared/dept-registry.js?v=6493"></script>
-<script src="../shared/job-class-registry.js?v=6493"></script>
-<script src="../shared/personnel-migrate.js?v=6493"></script>
-<script src="../shared/nurses-store.js?v=6493"></script>
-<script src="../shared/duty-adapter.js?v=6493"></script>
+<script src="../shared/utils.js?v=6494"></script>
+<script src="../shared/persons-store.js?v=6494"></script>
+<script src="../shared/dept-registry.js?v=6494"></script>
+<script src="../shared/job-class-registry.js?v=6494"></script>
+<script src="../shared/personnel-migrate.js?v=6494"></script>
+<script src="../shared/nurses-store.js?v=6494"></script>
+<script src="../shared/duty-adapter.js?v=6494"></script>
 
 <script>
 /* 직원 관리는 종합 풀(persons-store)의 주인 화면. WARD_ID 불필요(부서 아님). */
@@ -340,6 +343,8 @@ function deptBadge(m){
   return '<span class="badge-dept '+cls+'">'+escapeHtml(lab)+'</span>';
 }
 var _collapsedDepts = {};   // {deptId: true} 접힌 부서
+var _collapsedInit = false; // 최초 1회 전체 접힘 적용 여부
+var _lastOrder = [];        // 마지막 렌더의 부서 순서 (모두 펼치기/접기용)
 function renderList(){
   var people = (window.PersonsStore? PersonsStore.list():[]);
   document.getElementById('staffCount').textContent = people.length+'명';
@@ -362,6 +367,13 @@ function renderList(){
   // 레지스트리에 없지만 데이터에 있는 소속(레거시 'duty' 등) 보충
   Object.keys(groups).forEach(function(k){ if(k && order.indexOf(k)<0) order.push(k); });
   if(groups['']) order.push('');   // 미배정은 맨 끝
+
+  // 최초 진입 시 모든 부서 카드를 접힌 상태로 (인원이 많아 혼란 방지). 이후엔 사용자 토글 상태 유지.
+  if(!_collapsedInit){
+    order.forEach(function(k){ _collapsedDepts[k] = true; });
+    _collapsedInit = true;
+  }
+  _lastOrder = order.slice();   // 모두 펼치기/접기 토글용
 
   function deptName(k){
     if(!k) return '미배정';
@@ -661,6 +673,13 @@ function updatePhotoPrev(name){
 function closeStaff(){ document.getElementById('staffModal').classList.remove('open'); renderList(); }
 
 document.getElementById('btnAdd').addEventListener('click', function(){ openStaff(null); });
+document.getElementById('btnToggleAll').addEventListener('click', function(){
+  // 펼친 부서가 하나라도 있으면 모두 접기, 전부 접혀 있으면 모두 펼치기
+  var anyOpen = _lastOrder.some(function(k){ return !_collapsedDepts[k]; });
+  _lastOrder.forEach(function(k){ _collapsedDepts[k] = anyOpen; });
+  this.textContent = anyOpen ? '⊕ 모두 펼치기' : '⊖ 모두 접기';
+  renderList();
+});
 document.getElementById('smClose').addEventListener('click', closeStaff);
 document.getElementById('staffModal').addEventListener('click', function(e){ if(e.target===this) closeStaff(); });
 document.getElementById('smName').addEventListener('input', function(){ if(!_photoData) updatePhotoPrev(); });
@@ -805,7 +824,7 @@ window.UGUIDE_ITEMS = [{
     +'<p><b>생일</b> — 입력한 생일은 외래·듀티 달력에 🎂로 표시됩니다.</p>'
 }];
 </script>
-<script src="../shared/uguide.js?v=6493"></script>
-<script src="../shared/version.js?v=6493"></script>
+<script src="../shared/uguide.js?v=6494"></script>
+<script src="../shared/version.js?v=6494"></script>
 </body>
 </html>
