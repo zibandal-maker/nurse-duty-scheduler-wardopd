@@ -85,10 +85,16 @@
     var disp = (am && pm) ? (am===pm ? am : am+'/'+pm) : (am || pm || '');
     return { dept:dept, display:disp, raw:cell };
   }
-  // ER 부서 판정 — dv6_er_dept(raw 문자열)에 저장된 부서 id와 일치
+  // ER 부서 판정 — dv6_er_dept(raw 문자열)에 저장된 부서 id와 일치 + 그 부서 이름이 '응급실'
+  //   (구버전이 일반 의사부서를 빌려쓰며 남긴 id를 ER로 오인하지 않도록 이름까지 확인)
   function _isErDept(dept){
     var erId = _readRaw('dv6_er_dept');   // raw 문자열(JSON 아님)
-    return !!dept && !!erId && dept === erId;
+    if(!dept || !erId || dept !== erId) return false;
+    if(g.DeptRegistry && g.DeptRegistry.get){
+      var r = g.DeptRegistry.get(dept);
+      if(r && r.name && r.name !== '응급실') return false;   // 이름이 응급실이 아니면 ER 아님
+    }
+    return true;
   }
   // raw 문자열 키 읽기 (JSON 파싱 시도, 실패 시 원문)
   function _readRaw(key){

@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#C0392B">
 <title>응급실 당직표</title>
-<link rel="stylesheet" href="../shared/theme.css?v=6497">
-<link rel="stylesheet" href="../shared/calendar-grid.css?v=6497">
-<link rel="stylesheet" href="../shared/uguide.css?v=6497">
+<link rel="stylesheet" href="../shared/theme.css?v=6498">
+<link rel="stylesheet" href="../shared/calendar-grid.css?v=6498">
+<link rel="stylesheet" href="../shared/uguide.css?v=6498">
 <style>
   :root{ --er:#C0392B; --er-bg:#FCEBEA; }
   header .ico{color:var(--er);}
@@ -105,11 +105,11 @@
   </div><!-- /layout -->
 </div>
 
-<script src="../shared/utils.js?v=6497"></script>
-<script src="../shared/calendar-store.js?v=6497"></script>
-<script src="../shared/persons-store.js?v=6497"></script>
-<script src="../shared/dept-registry.js?v=6497"></script>
-<script src="../shared/er-roster-store.js?v=6497"></script>
+<script src="../shared/utils.js?v=6498"></script>
+<script src="../shared/calendar-store.js?v=6498"></script>
+<script src="../shared/persons-store.js?v=6498"></script>
+<script src="../shared/dept-registry.js?v=6498"></script>
+<script src="../shared/er-roster-store.js?v=6498"></script>
 <script>
 /* ============================================================
    er-duty/index.html — 응급실(응급의학과) 당직표 (독립)
@@ -133,8 +133,10 @@ var _erDept = '';
 function _ensureErDept(){
   if(!window.DeptRegistry) return '';
   var saved = (window.ErRosterStore) ? ErRosterStore.getDeptId() : '';
-  if(saved && DeptRegistry.get && DeptRegistry.get(saved)) return saved;   // 이미 유효한 부서
-  // 기존에 '응급실' 이름의 doctor 부서가 있으면 그걸 사용
+  // saved 가 유효하고 그 부서 이름이 '응급실'일 때만 신뢰.
+  //   (구버전은 내과계 등 일반 의사부서를 빌려 dv6_er_dept 에 그 id를 넣었음 → 그대로 쓰면 내과계가 응급실로 오인됨)
+  if(saved && DeptRegistry.get && DeptRegistry.get(saved) && DeptRegistry.get(saved).name==='응급실') return saved;
+  // 이름이 '응급실'인 doctor 부서가 이미 있으면 그걸 사용(중복 생성 방지)
   var found = DeptRegistry.listByKind('doctor').filter(function(d){ return d.name==='응급실'; })[0];
   var dept = found || (DeptRegistry.create ? DeptRegistry.create('응급실','doctor') : null);
   if(dept){ if(window.ErRosterStore) ErRosterStore.setDeptId(dept.id); return dept.id; }
@@ -375,7 +377,7 @@ window.UGUIDE_ITEMS = [{
     +'<p><b>공유</b> — 당직의 성씨가 내과계·외과계 등 다른 의사과 스케줄의 날짜 옆에 자동 표시됩니다.</p>'
 }];
 </script>
-<script src="../shared/uguide.js?v=6497"></script>
-<script src="../shared/version.js?v=6497"></script>
+<script src="../shared/uguide.js?v=6498"></script>
+<script src="../shared/version.js?v=6498"></script>
 </body>
 </html>
