@@ -22,7 +22,7 @@
     <a href="../index.html">← 부서 선택으로</a>
     <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;">
       <button class="toolbtn b-report" id="btnStats" title="근무 통계">📊 통계</button>
-      <button class="toolbtn b-auto" id="btnAuto" title="자동배치 — 요일고정 반영 + 평일 근무·토요일 오전">✨ 자동배치</button>
+      <button class="toolbtn b-auto" id="btnAuto" title="자동배치 — 요일 고정근무(휴진·당직·내시경)를 이번 달에 반영. 규칙 없는 날은 근무로 둠">✨ 자동배치</button>
       <button class="toolbtn b-reset" id="btnReset" title="이 부서 근무표 초기화">↺ 초기화</button>
       <button class="toolbtn b-rules" id="btnSettings" title="슬롯 방식·기본 뷰 설정">⚙ 설정</button>
       <button class="toolbtn b-print" id="btnPrint" title="현재 달 인쇄">🖨 인쇄</button>
@@ -1344,29 +1344,29 @@ document.getElementById('btnReset').addEventListener('click', function(){
   }
 });
 
-// ⑤ 자동배치 — 의사: 요일 고정근무(고정 휴진·당직·주차) 패턴을 이번 달에 일괄 적용.
-//    수동 입력은 보존. 의사는 "전부 근무" 개념이 없으므로 요일고정 반영만 한다.
+// ⑤ 자동배치 — 의사: 요일 고정근무(고정 휴진·당직·내시경·주차)를 이번 달에 일괄 반영.
+//    규칙이 있는 날만 채우고, 규칙 없는 날은 그대로 둔다(빈칸=근무). 수동 입력은 보존.
 document.getElementById('btnAuto').addEventListener('click', function(){
   if(!window.PersonsStore || !window.DocScheduleStore || !window.OutpatientAdapter) return;
   var members = OutpatientAdapter.listMembers(WARD_ID);
   if(!members.length){ alert('배치할 인원이 없습니다. 먼저 의사를 추가하세요.'); return; }
   var monthLabel = viewY+'년 '+(viewM+1)+'월';
-  // 요일고정 규칙이 있는 사람이 있는지
+  // 요일고정 규칙이 있는 사람이 있는지 (없어도 막지 않음 — 규칙 없는 날은 근무로 간주)
   var anyRule = members.some(function(p){
     var da=(p.deptAttrs&&p.deptAttrs[WARD_ID])?p.deptAttrs[WARD_ID]:{};
     var fw=(da.attributes&&da.attributes.fixedWeekday)?da.attributes.fixedWeekday:{};
     return fw && Object.keys(fw).length>0;
   });
-  if(!anyRule){
-    alert('적용할 요일 고정근무가 없습니다.\n\n좌측 의사 카드를 펼쳐 “요일 고정근무”에서 고정 휴진·당직·주차를 먼저 설정하세요.');
-    return;
-  }
-  if(!confirm(monthLabel+' 자동배치를 실행합니다.\n\n· 각 의사의 요일 고정근무(고정 휴진·당직·주차)를 이번 달에 반영합니다.\n· 직접 입력한 칸은 그대로 보존됩니다.\n\n계속할까요?')) return;
+  var msg = anyRule
+    ? (monthLabel+' 자동배치를 실행합니다.\n\n· 각 의사의 요일 고정근무(고정 휴진·당직·내시경·주차)를 이번 달에 반영합니다.\n· 규칙 없는 날은 근무로 둡니다.\n· 직접 입력한 칸은 그대로 보존됩니다.\n\n계속할까요?')
+    : (monthLabel+' 자동배치를 실행합니다.\n\n· 현재 설정된 요일 고정근무가 없어 채울 규칙이 없습니다.\n  (규칙 없는 날은 근무로 간주되므로 추가로 표시할 내용이 없습니다.)\n· 고정 휴진·당직·내시경을 자동 반영하려면 좌측 의사 카드의 “요일 고정근무”를 먼저 설정하세요.\n\n그래도 실행할까요? (기존 요일고정분 정리·반영)');
+  if(!confirm(msg)) return;
   applyFixedWeekday();
   renderSheet();
   _calOnly=true; try{ renderCalendar(); }finally{ _calOnly=false; }
-  if(typeof flashTool==='function') flashTool('자동배치 완료 ✓');
-  else alert('자동배치 완료 — 요일 고정근무 반영');
+  var done = anyRule ? '자동배치 완료 ✓' : '요일고정 규칙이 없어 변경 없음 (빈칸=근무)';
+  if(typeof flashTool==='function') flashTool(done);
+  else alert(done);
 });
 
 /* ── M3d-2: 날짜 편집 모달 (첫 데이터 쓰기) ──
@@ -1554,7 +1554,7 @@ window.UGUIDE_ITEMS = [{
   icon:'📖', title:'외래 근무표 사용 가이드',
   html:'<p><b>이 부서 인원은?</b> 직원관리에서 이 부서로 배치한 의사가 왼쪽 명단에 나옵니다. 사람 추가·삭제는 직원관리에서.</p>'
     +'<p><b>근무 칠하기</b> — 위 “붓”에서 종류(근무·연차·반차·월차·휴가·경조·OFF)를 고른 뒤 달력 칸의 오전/오후를 클릭. 숫자키 1~6·0으로 붓 변경, Backspace 지우기, Esc 붓 해제.</p>'
-    +'<p><b>자동배치</b> — “✨ 자동배치”는 요일 고정근무를 먼저 반영하고 평일 오전·오후, 토요일 오전만 채웁니다(일·공휴일 제외). 직접 입력한 칸은 보존.</p>'
+    +'<p><b>자동배치</b> — “✨ 자동배치”는 각 의사의 요일 고정근무(고정 휴진·당직·내시경·주차)를 이번 달에 일괄 반영합니다. 규칙 없는 날은 근무로 둡니다(의사 셀은 빈칸=근무). 직접 입력한 칸은 보존됩니다.</p>'
     +'<p><b>요일 고정·색</b> — 의사 카드를 펼쳐 요일 고정근무·색 지정. 색은 달력 이름에 반영. 이달 생일자는 🎂.</p>'
     +'<p><b>보기·폭</b> — 달력형/명단형 전환, 우측 “＋／－”로 표 폭 조절.</p>'
 }];
