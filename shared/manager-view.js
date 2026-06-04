@@ -131,8 +131,15 @@
         bucket.groups[dl].push(p.name||'?');
         // 휴진만 아니면 근무로 간주
         if(dl.indexOf('휴진')<0) bucket.working++;
+        // 오전/오후 휴무 분리 집계 (휴진 슬롯)
+        var draw = c.raw;
+        if(draw){
+          var dAmOff = draw.am && draw.am.status==='휴진';
+          var dPmOff = draw.pm && draw.pm.status==='휴진';
+          _pushOff(bucket, p.name||'?', dAmOff, dPmOff);
+        }
       } else {
-        // 외래: 오전/오후 근무 라벨로 그룹 (근무/연차/반차…)
+        // 외래·행정: 오전/오후 근무 라벨로 그룹 (근무/연차/반차…)
         var raw = c.raw;
         if(!raw) return;
         var am = raw.am && raw.am.code ? _outLabel(raw.am.code) : '';
@@ -142,9 +149,22 @@
         if(!bucket.groups[disp]) bucket.groups[disp] = [];
         bucket.groups[disp].push(p.name||'?');
         if(am==='근무'||pm==='근무') bucket.working++;
+        // 오전/오후 휴무 분리 집계 (근무가 아닌 코드 = 휴무성)
+        var amOff = !!(raw.am && raw.am.code && raw.am.code!=='work');
+        var pmOff = !!(raw.pm && raw.pm.code && raw.pm.code!=='work');
+        _pushOff(bucket, p.name||'?', amOff, pmOff);
       }
     });
     return { byDept:byDept, order:order };
+  }
+  // 오전/오후 휴무 분리 누적. bucket.offAm / offPm / offAll 에 이름 push.
+  function _pushOff(bucket, name, amOff, pmOff){
+    if(!bucket.offAm) bucket.offAm = [];
+    if(!bucket.offPm) bucket.offPm = [];
+    if(!bucket.offAll) bucket.offAll = [];
+    if(amOff && pmOff) bucket.offAll.push(name);
+    else if(amOff) bucket.offAm.push(name);
+    else if(pmOff) bucket.offPm.push(name);
   }
 
   // 그날의 전체 요약 (현황판 상단 카드용)
