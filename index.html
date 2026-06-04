@@ -7,13 +7,13 @@
 <!-- 공유 모듈: 사람 풀을 읽어 전체 인원 표시 (풀 분리 동작 확인)
      ★ ward-context.js 는 로드하지 않는다 — 듀티 전용(WARD_ID='duty' + 로드 즉시 듀티 마이그레이션).
        부서 선택 화면은 어느 부서도 아니므로 persons-store(공유 풀)만 필요하다. -->
-<script src="./shared/persons-store.js?v=6494"></script>
-<script src="./shared/dept-registry.js?v=6494"></script>
-<script src="./shared/utils.js?v=6494"></script>
-<script src="./shared/calendar-store.js?v=6494"></script>
-<script src="./shared/er-roster-store.js?v=6494"></script>
-<script src="./calendar/cal-shifts.js?v=6494"></script>
-<script src="./shared/manager-view.js?v=6494"></script>
+<script src="./shared/persons-store.js?v=6495"></script>
+<script src="./shared/dept-registry.js?v=6495"></script>
+<script src="./shared/utils.js?v=6495"></script>
+<script src="./shared/calendar-store.js?v=6495"></script>
+<script src="./shared/er-roster-store.js?v=6495"></script>
+<script src="./calendar/cal-shifts.js?v=6495"></script>
+<script src="./shared/manager-view.js?v=6495"></script>
 <style>
   :root{
     --navy:#0C447C; --navy-deep:#072F58; --navy-soft:#1E6DBF;
@@ -332,9 +332,6 @@
     if(!bucket) return '<div class="todayros empty">오늘 근무 정보 없음</div>';
     var groups = bucket.groups || {};
     var kind = bucket.kind;
-    // 비근무로 분류할 라벨(부분일치). 그 외는 근무로 간주.
-    var OFFISH = ['OFF','off','연차','월차','반차','휴가','경조','휴진','병가','공가'];
-    function isOff(label){ return OFFISH.some(function(t){ return label.indexOf(t)>=0; }); }
     var rows=[];
     var offNames=[];
 
@@ -353,18 +350,13 @@
         rows.push('<div class="trow off"><span class="tcode off">휴무</span><span class="tnames">'+escapeHtml(offNames.join(', '))+'</span></div>');
       }
     } else {
-      // 외래·의사·행정: 근무 형태별 라벨 나열 + 휴무는 오전/오후/종일로 나눠 표시.
-      var workKeys = Object.keys(groups).filter(function(k){ return !isOff(k); });
-      workKeys.sort(function(a,b){ return (a==='근무'?-1:b==='근무'?1:a.localeCompare(b)); });
-      workKeys.forEach(function(k){
-        var names=groups[k]||[];
-        if(names.length) rows.push('<div class="trow"><span class="tcode work">'+escapeHtml(k)+'</span><span class="tnames">'+escapeHtml(names.join(', '))+'</span></div>');
-      });
-      // 오전/오후/종일 휴무 분리 (manager-view 가 분류해 둠)
-      var offAll=bucket.offAll||[], offAm=bucket.offAm||[], offPm=bucket.offPm||[];
-      if(offAll.length) rows.push('<div class="trow off"><span class="tcode off">휴무</span><span class="tnames">'+escapeHtml(offAll.join(', '))+'</span></div>');
-      if(offAm.length)  rows.push('<div class="trow off"><span class="tcode off">오전휴무</span><span class="tnames">'+escapeHtml(offAm.join(', '))+'</span></div>');
-      if(offPm.length)  rows.push('<div class="trow off"><span class="tcode off">오후휴무</span><span class="tnames">'+escapeHtml(offPm.join(', '))+'</span></div>');
+      // 외래·의사·행정: 슬롯 단위 분류 (manager-view). 오전/오후 중 하나라도 근무면 근무로 잡힘.
+      //   종일근무 / 오전근무(오후휴무) / 오후근무(오전휴무) / 종일휴무 로 표시.
+      var workFull=bucket.workFull||[], workAm=bucket.workAm||[], workPm=bucket.workPm||[], offFull=bucket.offFull||[];
+      if(workFull.length) rows.push('<div class="trow"><span class="tcode work">근무</span><span class="tnames">'+escapeHtml(workFull.join(', '))+'</span></div>');
+      if(workAm.length)   rows.push('<div class="trow"><span class="tcode work">오전근무</span><span class="tnames">'+escapeHtml(workAm.join(', '))+'</span></div>');
+      if(workPm.length)   rows.push('<div class="trow"><span class="tcode work">오후근무</span><span class="tnames">'+escapeHtml(workPm.join(', '))+'</span></div>');
+      if(offFull.length)  rows.push('<div class="trow off"><span class="tcode off">휴무</span><span class="tnames">'+escapeHtml(offFull.join(', '))+'</span></div>');
     }
 
     if(!rows.length) return '<div class="todayros empty">오늘 근무 정보 없음</div>';
@@ -796,7 +788,7 @@
     ['guidePop','infoPop'].forEach(function(x){ var e2=document.getElementById(x); if(e2) e2.classList.remove('open'); });
   });
 </script>
-<script src="./shared/version.js?v=6494"></script>
+<script src="./shared/version.js?v=6495"></script>
 <a href="mailto:zibandal@gmail.com?subject=[Scheduler]%20%ED%94%BC%EB%93%9C%EB%B0%B1" id="fbLink"
    title="피드백·버그 신고·기능 제안"
    style="position:fixed;right:10px;bottom:30px;z-index:9998;font-size:11px;color:var(--muted);

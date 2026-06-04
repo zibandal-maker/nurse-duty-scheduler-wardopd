@@ -129,14 +129,15 @@
         if(!dl) return;
         if(!bucket.groups[dl]) bucket.groups[dl] = [];
         bucket.groups[dl].push(p.name||'?');
-        // 휴진만 아니면 근무로 간주
-        if(dl.indexOf('휴진')<0) bucket.working++;
-        // 오전/오후 휴무 분리 집계 (휴진 슬롯)
         var draw = c.raw;
         if(draw){
-          var dAmOff = draw.am && draw.am.status==='휴진';
-          var dPmOff = draw.pm && draw.pm.status==='휴진';
-          _pushOff(bucket, p.name||'?', dAmOff, dPmOff);
+          // 휴진이 아니고 무언가 입력된 슬롯 = 근무(콜·내시경·협진·work 포함)
+          function _docWork(s){ return !!s && s.status!=='휴진' && (s.work||s.erCall||s.endo||s.consult||s.block); }
+          var dAmWork = _docWork(draw.am), dPmWork = _docWork(draw.pm);
+          var dAmOff = !!(draw.am && draw.am.status==='휴진');
+          var dPmOff = !!(draw.pm && draw.pm.status==='휴진');
+          if(dAmWork || dPmWork) bucket.working++;
+          _classifyShift(bucket, p.name||'?', dAmWork, dPmWork, dAmOff, dPmOff);
         }
       } else {
         // 외래·행정: 오전/오후 근무 라벨로 그룹 (근무/연차/반차…)
@@ -148,23 +149,31 @@
         if(!disp) return;
         if(!bucket.groups[disp]) bucket.groups[disp] = [];
         bucket.groups[disp].push(p.name||'?');
-        if(am==='근무'||pm==='근무') bucket.working++;
-        // 오전/오후 휴무 분리 집계 (근무가 아닌 코드 = 휴무성)
-        var amOff = !!(raw.am && raw.am.code && raw.am.code!=='work');
-        var pmOff = !!(raw.pm && raw.pm.code && raw.pm.code!=='work');
-        _pushOff(bucket, p.name||'?', amOff, pmOff);
+        // 슬롯 단위 근무 여부 (code==='work' 가 근무)
+        var amWork = !!(raw.am && raw.am.code==='work');
+        var pmWork = !!(raw.pm && raw.pm.code==='work');
+        // 오전/오후 중 하나라도 근무면 근무 인원으로 카운트
+        if(amWork || pmWork) bucket.working++;
+        _classifyShift(bucket, p.name||'?', amWork, pmWork,
+                       !!(raw.am && raw.am.code && raw.am.code!=='work'),
+                       !!(raw.pm && raw.pm.code && raw.pm.code!=='work'));
       }
     });
     return { byDept:byDept, order:order };
   }
-  // 오전/오후 휴무 분리 누적. bucket.offAm / offPm / offAll 에 이름 push.
-  function _pushOff(bucket, name, amOff, pmOff){
-    if(!bucket.offAm) bucket.offAm = [];
-    if(!bucket.offPm) bucket.offPm = [];
-    if(!bucket.offAll) bucket.offAll = [];
-    if(amOff && pmOff) bucket.offAll.push(name);
-    else if(amOff) bucket.offAm.push(name);
-    else if(pmOff) bucket.offPm.push(name);
+  // 한 사람을 근무/휴무 상태에 따라 정확히 한 줄에 분류.
+  //   workFull(종일근무) / workAm(오전만 근무=오후휴무) / workPm(오후만 근무=오전휴무) / offFull(종일휴무)
+  function _classifyShift(bucket, name, amWork, pmWork, amOff, pmOff){
+    if(!bucket.workFull) bucket.workFull=[];
+    if(!bucket.workAm)   bucket.workAm=[];
+    if(!bucket.workPm)   bucket.workPm=[];
+    if(!bucket.offFull)  bucket.offFull=[];
+    if(amWork && pmWork)       bucket.workFull.push(name);   // 종일 근무
+    else if(amWork && pmOff)   bucket.workAm.push(name);     // 오전 근무 + 오후 휴무
+    else if(pmWork && amOff)   bucket.workPm.push(name);     // 오후 근무 + 오전 휴무
+    else if(amWork)            bucket.workAm.push(name);     // 오전만 입력(오후 미입력)
+    else if(pmWork)            bucket.workPm.push(name);     // 오후만 입력
+    else if(amOff || pmOff)    bucket.offFull.push(name);    // 근무 슬롯 없음 = 종일 휴무
   }
 
   // 그날의 전체 요약 (현황판 상단 카드용)
