@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>비교대 근무표 (M2 개발 중)</title>
-<link rel="stylesheet" href="../shared/theme.css?v=6491">
-<link rel="stylesheet" href="../shared/calendar-grid.css?v=6491">
-<link rel="stylesheet" href="../shared/uguide.css?v=6491">
+<link rel="stylesheet" href="../shared/theme.css?v=6492">
+<link rel="stylesheet" href="../shared/calendar-grid.css?v=6492">
+<link rel="stylesheet" href="../shared/uguide.css?v=6492">
 </head>
 <body>
 <div class="wrap">
@@ -22,7 +22,7 @@
     <a href="../index.html">← 부서 선택으로</a>
     <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;">
       <button class="toolbtn b-report" id="btnStats" title="근무 통계">📊 통계</button>
-      <button class="toolbtn b-auto" id="btnAuto" title="자동배치 — 요일 고정근무(휴진·당직·내시경)를 이번 달에 반영. 규칙 없는 날은 근무로 둠">✨ 자동배치</button>
+      <button class="toolbtn b-auto" id="btnAuto" title="자동배치 — 요일 고정근무 반영 후, 평일·토요일 빈 칸을 근무로 채움 (일·공휴일 제외)">✨ 자동배치</button>
       <button class="toolbtn b-reset" id="btnReset" title="이 부서 근무표 초기화">↺ 초기화</button>
       <button class="toolbtn b-rules" id="btnSettings" title="슬롯 방식·기본 뷰 설정">⚙ 설정</button>
       <button class="toolbtn b-print" id="btnPrint" title="현재 달 인쇄">🖨 인쇄</button>
@@ -199,14 +199,14 @@
       키 규칙(base_wardId)만 동일 규약으로 자체 보유한다. (작은 중복 < 잘못된 결합)
   ────────────────────────────────────────────────────────────────
 -->
-<script src="../shared/utils.js?v=6491"></script>
-<script src="../shared/calendar-store.js?v=6491"></script>
-<script src="../shared/persons-store.js?v=6491"></script>
-<script src="../shared/dept-registry.js?v=6491"></script>
-<script src="../shared/outpatient-adapter.js?v=6491"></script>
-<script src="../shared/er-roster-store.js?v=6491"></script>
-<script src="./doc-schedule-store.js?v=6491"></script>
-<script src="./doc-render.js?v=6491"></script>
+<script src="../shared/utils.js?v=6492"></script>
+<script src="../shared/calendar-store.js?v=6492"></script>
+<script src="../shared/persons-store.js?v=6492"></script>
+<script src="../shared/dept-registry.js?v=6492"></script>
+<script src="../shared/outpatient-adapter.js?v=6492"></script>
+<script src="../shared/er-roster-store.js?v=6492"></script>
+<script src="./doc-schedule-store.js?v=6492"></script>
+<script src="./doc-render.js?v=6492"></script>
 
 <script>
 /* ── 비교대 부서 컨텍스트 (자체 선언, ward-context 미사용) ──
@@ -583,6 +583,32 @@ function applyFixedWeekday(){
     }
   });
   if(changed && window.DocActiveRepo && DocActiveRepo.saveSchedule) DocActiveRepo.saveSchedule();
+}
+
+// 자동배치 본체: ① 요일고정 반영 → ② 남은 평일·토요일 빈 칸을 명시적 '근무'로 채움.
+//   일요일·공휴일 제외(의사 근무 없음/특수). 수동 입력·요일고정분은 보존.
+function autoFillDoctor(){
+  if(!window.DocScheduleStore || !window.PersonsStore) return 0;
+  applyFixedWeekday();   // 먼저 요일고정(휴진·당직·내시경 등) 반영
+  var members = (window.OutpatientAdapter) ? OutpatientAdapter.listMembers(WARD_ID)
+                : PersonsStore.listByDept(WARD_ID);
+  var total = ndays(viewY, viewM);
+  var filled = 0;
+  members.forEach(function(p){
+    for(var d=1; d<=total; d++){
+      var wd = dow(viewY, viewM, d);
+      if(wd===0) continue;   // 일요일 제외
+      if(CalendarStore.isHoliday(viewY, viewM+1, d)) continue;   // 공휴일 제외(필요시 수동 입력)
+      ['am','pm'].forEach(function(slot){
+        var cur = DocScheduleStore.getSlot(p.personId, viewY, viewM, d, slot);
+        if(!DocScheduleStore.slotEmpty(cur)) return;   // 이미 뭔가 있으면(근무·콜·휴진·요일고정) 건너뜀
+        DocScheduleStore.setSlot(p.personId, viewY, viewM, d, slot, {work:true});
+        filled++;
+      });
+    }
+  });
+  if(filled && window.DocActiveRepo && DocActiveRepo.saveSchedule) DocActiveRepo.saveSchedule();
+  return filled;
 }
 
 // 의사 추가 UI 채우기 (배치 후보 + 세부과목)
@@ -1346,27 +1372,18 @@ document.getElementById('btnReset').addEventListener('click', function(){
   }
 });
 
-// ⑤ 자동배치 — 의사: 요일 고정근무(고정 휴진·당직·내시경·주차)를 이번 달에 일괄 반영.
-//    규칙이 있는 날만 채우고, 규칙 없는 날은 그대로 둔다(빈칸=근무). 수동 입력은 보존.
+// ⑤ 자동배치 — 의사: ① 요일 고정근무 반영 → ② 남은 평일·토요일 빈 칸을 '근무'로 채움.
+//    일요일·공휴일 제외. 수동 입력·요일고정분은 보존.
 document.getElementById('btnAuto').addEventListener('click', function(){
   if(!window.PersonsStore || !window.DocScheduleStore || !window.OutpatientAdapter) return;
   var members = OutpatientAdapter.listMembers(WARD_ID);
   if(!members.length){ alert('배치할 인원이 없습니다. 먼저 의사를 추가하세요.'); return; }
   var monthLabel = viewY+'년 '+(viewM+1)+'월';
-  // 요일고정 규칙이 있는 사람이 있는지 (없어도 막지 않음 — 규칙 없는 날은 근무로 간주)
-  var anyRule = members.some(function(p){
-    var da=(p.deptAttrs&&p.deptAttrs[WARD_ID])?p.deptAttrs[WARD_ID]:{};
-    var fw=(da.attributes&&da.attributes.fixedWeekday)?da.attributes.fixedWeekday:{};
-    return fw && Object.keys(fw).length>0;
-  });
-  var msg = anyRule
-    ? (monthLabel+' 자동배치를 실행합니다.\n\n· 각 의사의 요일 고정근무(고정 휴진·당직·내시경·주차)를 이번 달에 반영합니다.\n· 규칙 없는 날은 근무로 둡니다.\n· 직접 입력한 칸은 그대로 보존됩니다.\n\n계속할까요?')
-    : (monthLabel+' 자동배치를 실행합니다.\n\n· 현재 설정된 요일 고정근무가 없어 채울 규칙이 없습니다.\n  (규칙 없는 날은 근무로 간주되므로 추가로 표시할 내용이 없습니다.)\n· 고정 휴진·당직·내시경을 자동 반영하려면 좌측 의사 카드의 “요일 고정근무”를 먼저 설정하세요.\n\n그래도 실행할까요? (기존 요일고정분 정리·반영)');
-  if(!confirm(msg)) return;
-  applyFixedWeekday();
+  if(!confirm(monthLabel+' 자동배치를 실행합니다.\n\n· 각 의사의 요일 고정근무(휴진·당직·내시경 등)를 먼저 반영합니다.\n· 그 외 평일·토요일의 빈 칸을 모두 “근무”로 채웁니다.\n· 일요일·공휴일은 비워 둡니다(필요 시 수동 입력).\n· 이미 입력한 칸(근무·휴진·당직 등)은 그대로 보존됩니다.\n\n계속할까요?')) return;
+  var filled = autoFillDoctor();
   renderSheet();
   _calOnly=true; try{ renderCalendar(); }finally{ _calOnly=false; }
-  var done = anyRule ? '자동배치 완료 ✓' : '요일고정 규칙이 없어 변경 없음 (빈칸=근무)';
+  var done = '자동배치 완료 ✓ (근무 '+filled+'칸 채움)';
   if(typeof flashTool==='function') flashTool(done);
   else alert(done);
 });
@@ -1556,12 +1573,12 @@ window.UGUIDE_ITEMS = [{
   icon:'📖', title:'외래 근무표 사용 가이드',
   html:'<p><b>이 부서 인원은?</b> 직원관리에서 이 부서로 배치한 의사가 왼쪽 명단에 나옵니다. 사람 추가·삭제는 직원관리에서.</p>'
     +'<p><b>근무 칠하기</b> — 위 “붓”에서 종류(1 근무·2 D콜·3 N콜·4 내시경·5 협진·6 (X)금지·7 휴진)를 고른 뒤 달력 칸의 오전/오후를 클릭. 숫자키 1~7로 붓 변경, Backspace 지우기, Esc 붓 해제. 같은 붓 재클릭=해제.</p>'
-    +'<p><b>자동배치</b> — “✨ 자동배치”는 각 의사의 요일 고정근무(고정 휴진·당직·내시경·주차)를 이번 달에 일괄 반영합니다. 규칙 없는 날은 근무로 둡니다(의사 셀은 빈칸=근무). 직접 입력한 칸은 보존됩니다.</p>'
+    +'<p><b>자동배치</b> — “✨ 자동배치”는 ① 각 의사의 요일 고정근무(휴진·당직·내시경 등)를 먼저 반영하고, ② 그 외 평일·토요일의 빈 칸을 모두 “근무”로 채웁니다. 일요일·공휴일은 비워 둡니다(필요 시 수동 입력). 이미 입력한 칸은 보존됩니다.</p>'
     +'<p><b>요일 고정·색</b> — 의사 카드를 펼쳐 요일 고정근무·색 지정. 색은 달력 이름에 반영. 이달 생일자는 🎂.</p>'
     +'<p><b>보기·폭</b> — 달력형/명단형 전환, 우측 “＋／－”로 표 폭 조절.</p>'
 }];
 </script>
-<script src="../shared/uguide.js?v=6491"></script>
-<script src="../shared/version.js?v=6491"></script>
+<script src="../shared/uguide.js?v=6492"></script>
+<script src="../shared/version.js?v=6492"></script>
 </body>
 </html>
