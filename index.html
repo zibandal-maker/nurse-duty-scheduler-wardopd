@@ -7,13 +7,14 @@
 <!-- 공유 모듈: 사람 풀을 읽어 전체 인원 표시 (풀 분리 동작 확인)
      ★ ward-context.js 는 로드하지 않는다 — 듀티 전용(WARD_ID='duty' + 로드 즉시 듀티 마이그레이션).
        부서 선택 화면은 어느 부서도 아니므로 persons-store(공유 풀)만 필요하다. -->
-<script src="./shared/persons-store.js?v=6498"></script>
-<script src="./shared/dept-registry.js?v=6498"></script>
-<script src="./shared/utils.js?v=6498"></script>
-<script src="./shared/calendar-store.js?v=6498"></script>
-<script src="./shared/er-roster-store.js?v=6498"></script>
-<script src="./calendar/cal-shifts.js?v=6498"></script>
-<script src="./shared/manager-view.js?v=6498"></script>
+<script src="./shared/persons-store.js?v=6499"></script>
+<script src="./shared/dept-registry.js?v=6499"></script>
+<script src="./shared/utils.js?v=6499"></script>
+<script src="./shared/calendar-store.js?v=6499"></script>
+<script src="./shared/er-roster-store.js?v=6499"></script>
+<script src="./shared/notice-store.js?v=6499"></script>
+<script src="./calendar/cal-shifts.js?v=6499"></script>
+<script src="./shared/manager-view.js?v=6499"></script>
 <style>
   :root{
     --navy:#0C447C; --navy-deep:#072F58; --navy-soft:#1E6DBF;
@@ -123,6 +124,50 @@
   .roster .dot{width:7px;height:7px;border-radius:50%;background:#2EA875;box-shadow:0 0 0 3px rgba(46,168,117,.18)}
   .foot{margin-top:26px; font-size:11px; color:var(--muted); opacity:0; animation:rise .6s .7s forwards}
   @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+
+  /* 하단 패널 (새로운 직원 · 공지사항) */
+  .panel{background:#fff;border:1px solid var(--line);border-radius:14px;margin-bottom:18px;overflow:hidden;
+       box-shadow:0 2px 10px rgba(12,68,124,.05);}
+  .panelhd{display:flex;align-items:center;gap:10px;padding:14px 18px;cursor:pointer;user-select:none;list-style:none;}
+  .panelhd.static{cursor:default;}
+  .panelhd::-webkit-details-marker{display:none;}
+  .panelhd .phicon{font-size:19px;}
+  .panelhd .phtitle{font-weight:800;color:var(--navy-deep);font-size:16px;}
+  .panelhd .phcount{background:var(--navy-soft);color:#fff;font-size:12px;font-weight:700;border-radius:999px;
+       min-width:22px;height:20px;display:inline-flex;align-items:center;justify-content:center;padding:0 7px;}
+  .panelhd .phcaret{margin-left:auto;color:var(--muted);transition:transform .2s;}
+  details[open] .panelhd .phcaret{transform:rotate(180deg);}
+  .panelhd .noticeAdd{margin-left:auto;border:1px solid var(--navy-soft);background:#fff;color:var(--navy-soft);
+       border-radius:8px;padding:5px 12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;}
+  .panelhd .noticeAdd:hover{background:var(--navy-soft);color:#fff;}
+  .panelbody{padding:4px 18px 18px;}
+  details.panel:not([open]) .panelbody{display:none;}
+
+  /* 새 직원 카드 그리드 */
+  .nsgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;}
+  .nscard{display:flex;align-items:center;gap:11px;padding:11px 13px;border:1px solid var(--line);
+       border-radius:11px;background:linear-gradient(180deg,#F4FAF6,#fff);}
+  .nscard .av{width:40px;height:40px;border-radius:50%;flex:0 0 auto;overflow:hidden;background:#D9EFE3;
+       color:#1A7A47;font-weight:800;display:inline-flex;align-items:center;justify-content:center;font-size:15px;}
+  .nscard .av img{width:100%;height:100%;object-fit:cover;}
+  .nscard .nm{font-weight:800;color:var(--navy-deep);font-size:15px;}
+  .nscard .meta{font-size:12px;color:var(--muted);margin-top:2px;}
+  .nscard .badge-new{font-size:10px;font-weight:800;color:#fff;background:#2EA875;border-radius:999px;padding:1px 7px;margin-left:6px;}
+  .panel .empty{color:var(--muted);font-size:13px;padding:10px 2px;}
+
+  /* 공지 목록 */
+  .nlist{display:flex;flex-direction:column;gap:10px;}
+  .nitem{border:1px solid var(--line);border-radius:11px;padding:12px 14px;position:relative;}
+  .nitem.pinned{border-color:#E2B33C;background:#FFFBF0;}
+  .nitem .ntop{display:flex;align-items:center;gap:8px;margin-bottom:4px;}
+  .nitem .ntitle{font-weight:800;color:var(--navy-deep);font-size:15px;}
+  .nitem .npin{font-size:11px;color:#B8860B;font-weight:700;}
+  .nitem .nbody{font-size:13.5px;color:#3A4654;line-height:1.6;white-space:pre-wrap;word-break:break-word;}
+  .nitem .nmeta{font-size:11.5px;color:var(--muted);margin-top:6px;}
+  .nitem .nacts{position:absolute;top:10px;right:12px;display:flex;gap:6px;}
+  .nitem .nacts button{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:12px;
+       padding:2px 6px;border-radius:6px;font-family:inherit;}
+  .nitem .nacts button:hover{background:#EEF0F3;color:var(--navy-deep);}
 </style>
 </head>
 <body>
@@ -149,6 +194,28 @@
         <p style="text-align:center">병동·외래·의사과·행정</p>
       </a>
     </div>
+
+    <!-- 새로운 직원 (최근 한 달 내 입사) — 평소 접힘, 클릭 시 펼침 -->
+    <details class="panel" id="newStaffPanel">
+      <summary class="panelhd">
+        <span class="phicon">🌱</span>
+        <span class="phtitle">새로운 직원</span>
+        <span class="phcount" id="newStaffCount">0</span>
+        <span class="phcaret">▾</span>
+      </summary>
+      <div class="panelbody" id="newStaffBody"></div>
+    </details>
+
+    <!-- 공지사항 -->
+    <section class="panel open" id="noticePanel">
+      <div class="panelhd static">
+        <span class="phicon">📢</span>
+        <span class="phtitle">공지사항</span>
+        <span class="phcount" id="noticeCount">0</span>
+        <button class="noticeAdd" id="noticeAddBtn" title="공지 작성">＋ 작성</button>
+      </div>
+      <div class="panelbody" id="noticeBody"></div>
+    </section>
 
     <!-- 개설 계열 선택 서브메뉴 -->
     <dialog id="newKindMenu" style="border:0;border-radius:16px;padding:0;max-width:340px;width:90%;box-shadow:0 24px 60px rgba(0,0,0,.25);">
@@ -497,6 +564,104 @@
   function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g,function(c){
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 
+  // ── 새로운 직원 (최근 한 달 내 입사) ─────────────────────────
+  function _daysSince(dateStr){
+    if(!dateStr) return null;
+    var t = Date.parse(dateStr);
+    if(isNaN(t)) return null;
+    return Math.floor((Date.now() - t) / 86400000);
+  }
+  function renderNewStaff(){
+    var body = document.getElementById('newStaffBody');
+    var cnt  = document.getElementById('newStaffCount');
+    if(!body || !window.PersonsStore){ return; }
+    var people = PersonsStore.list().filter(function(p){
+      var ds = _daysSince(p.joinDate);
+      return ds!=null && ds>=0 && ds<=31;     // 최근 31일 내 입사
+    });
+    // 입사일 최신순
+    people.sort(function(a,b){ return Date.parse(b.joinDate) - Date.parse(a.joinDate); });
+    cnt.textContent = people.length;
+    if(!people.length){
+      body.innerHTML = '<div class="empty">최근 한 달 내 입사한 직원이 없습니다.</div>';
+      return;
+    }
+    body.innerHTML = '<div class="nsgrid">' + people.map(function(p){
+      var dept = (window.DeptRegistry && p.membership && DeptRegistry.get(p.membership))
+                 ? DeptRegistry.get(p.membership).name : '미배정';
+      var ds = _daysSince(p.joinDate);
+      var ago = ds===0 ? '오늘' : (ds+'일 전');
+      var av = p.photo ? '<img src="'+escapeHtml(p.photo)+'" alt="">' : escapeHtml((p.name||'?').charAt(0));
+      return '<div class="nscard">'
+        + '<span class="av">'+av+'</span>'
+        + '<div><div class="nm">'+escapeHtml(p.name||'?')+'<span class="badge-new">NEW</span></div>'
+        + '<div class="meta">'+escapeHtml(dept)+' · '+escapeHtml(p.joinDate)+' ('+ago+')</div></div>'
+        + '</div>';
+    }).join('') + '</div>';
+  }
+
+  // ── 공지사항 ─────────────────────────────────────────────────
+  function _fmtDate(ms){
+    try{ var d=new Date(ms); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+    catch(_){ return ''; }
+  }
+  function renderNotices(){
+    var body = document.getElementById('noticeBody');
+    var cnt  = document.getElementById('noticeCount');
+    if(!body || !window.NoticeStore){ return; }
+    var items = NoticeStore.list();
+    cnt.textContent = items.length;
+    if(!items.length){
+      body.innerHTML = '<div class="empty">등록된 공지가 없습니다. “＋ 작성”으로 첫 공지를 올려보세요.</div>';
+      return;
+    }
+    body.innerHTML = '<div class="nlist">' + items.map(function(n){
+      return '<div class="nitem'+(n.pinned?' pinned':'')+'" data-id="'+escapeHtml(n.id)+'">'
+        + '<div class="nacts">'
+        +   '<button class="npinbtn" data-id="'+escapeHtml(n.id)+'">'+(n.pinned?'고정해제':'고정')+'</button>'
+        +   '<button class="neditbtn" data-id="'+escapeHtml(n.id)+'">수정</button>'
+        +   '<button class="ndelbtn" data-id="'+escapeHtml(n.id)+'">삭제</button>'
+        + '</div>'
+        + '<div class="ntop">'+(n.pinned?'<span class="npin">📌 고정</span>':'')+'<span class="ntitle">'+escapeHtml(n.title||'(제목 없음)')+'</span></div>'
+        + (n.body?'<div class="nbody">'+escapeHtml(n.body)+'</div>':'')
+        + '<div class="nmeta">'+_fmtDate(n.createdAt)+(n.updatedAt&&n.updatedAt!==n.createdAt?' (수정됨)':'')+'</div>'
+        + '</div>';
+    }).join('') + '</div>';
+    // 액션 바인딩
+    Array.prototype.forEach.call(body.querySelectorAll('.ndelbtn'), function(btn){
+      btn.addEventListener('click', function(){
+        if(!confirm('이 공지를 삭제할까요?')) return;
+        NoticeStore.remove(btn.getAttribute('data-id')); renderNotices();
+      });
+    });
+    Array.prototype.forEach.call(body.querySelectorAll('.npinbtn'), function(btn){
+      btn.addEventListener('click', function(){
+        var id=btn.getAttribute('data-id');
+        var cur=NoticeStore.list().filter(function(x){return x.id===id;})[0];
+        if(cur){ NoticeStore.update(id,{pinned:!cur.pinned}); renderNotices(); }
+      });
+    });
+    Array.prototype.forEach.call(body.querySelectorAll('.neditbtn'), function(btn){
+      btn.addEventListener('click', function(){
+        var id=btn.getAttribute('data-id');
+        var cur=NoticeStore.list().filter(function(x){return x.id===id;})[0];
+        if(!cur) return;
+        var t=prompt('공지 제목', cur.title); if(t===null) return;
+        var b2=prompt('공지 내용', cur.body); if(b2===null) return;
+        NoticeStore.update(id,{title:t,body:b2}); renderNotices();
+      });
+    });
+  }
+  // 공지 작성 버튼
+  (function(){
+    var addBtn=document.getElementById('noticeAddBtn');
+    if(addBtn) addBtn.addEventListener('click', function(){
+      var t=prompt('공지 제목'); if(t===null||!t.trim()) return;
+      var b2=prompt('공지 내용 (선택)')||'';
+      NoticeStore.add({title:t.trim(), body:b2}); renderNotices();
+    });
+  })();
+
   (function(){
     var dlg = document.getElementById('newDeptDlg');
     function closeDlg(){ if(dlg.close) dlg.close(); else dlg.removeAttribute('open'); }
@@ -565,6 +730,8 @@
     renderCalCards();
     renderDoctorCards();
     renderAdminCards();
+    renderNewStaff();
+    renderNotices();
   })();
 
   // M5c: 부서 관리 — 이름변경 + 삭제(데이터·소속 정리)
@@ -789,7 +956,7 @@
     ['guidePop','infoPop'].forEach(function(x){ var e2=document.getElementById(x); if(e2) e2.classList.remove('open'); });
   });
 </script>
-<script src="./shared/version.js?v=6498"></script>
+<script src="./shared/version.js?v=6499"></script>
 <a href="mailto:zibandal@gmail.com?subject=[Scheduler]%20%ED%94%BC%EB%93%9C%EB%B0%B1" id="fbLink"
    title="피드백·버그 신고·기능 제안"
    style="position:fixed;right:10px;bottom:30px;z-index:9998;font-size:11px;color:var(--muted);
