@@ -172,6 +172,15 @@ function renderCalendar(){
   var firstDow=dow(viewY, viewM, 1);
   var isThisMonth=(viewY===_today.getFullYear() && viewM===_today.getMonth());
   var todayD=isThisMonth?_today.getDate():-1;
+  // 의사별 색 맵 (deptAttrs[_erDept].color) — 당직 셀 색 구분용
+  var colorOf={};
+  if(_erDept && window.PersonsStore){
+    PersonsStore.listByDept(_erDept).forEach(function(p){
+      var da=p.deptAttrs&&p.deptAttrs[_erDept];
+      if(da&&da.color) colorOf[p.personId]=da.color;
+    });
+  }
+  function _erColor(pid){ return colorOf[pid] || '#C0392B'; }
   var cells=[];
   for(var i=0;i<firstDow;i++) cells.push(null);
   for(var d=1; d<=total; d++) cells.push(d);
@@ -189,8 +198,15 @@ function renderCalendar(){
       var cls=['daycal'];
       if(wd===0) cls.push('sun','sund'); if(wd===6) cls.push('sat','satd');
       if(holi) cls.push('holi'); if(d2===todayD) cls.push('today');
+      var pid=ErRosterStore.get(viewY,viewM+1,d2);
       var nm=ErRosterStore.name(viewY,viewM+1,d2);
-      var inner = nm ? '<div class="ername">'+escapeHtml(nm)+'</div>' : '<div class="erempty">— 미지정 —</div>';
+      var inner;
+      if(nm){
+        var col=_erColor(pid);
+        inner='<div class="ername" style="color:'+col+';background:'+col+'1f;">'+escapeHtml(nm)+'</div>';
+      } else {
+        inner='<div class="erempty">— 미지정 —</div>';
+      }
       html+='<td class="'+cls.join(' ')+'" data-day="'+d2+'">'
         +   '<div class="dayhead"><span class="daynum">'+d2+'</span>'
         +   (hname?'<span class="holiname">'+escapeHtml(hname)+'</span>':'')

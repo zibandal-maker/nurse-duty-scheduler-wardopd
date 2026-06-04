@@ -145,6 +145,8 @@
   /* 의사표형 셀 (M3c) — 날짜 칸 안에 근무자 세로 쌓기 + 오전/오후 좌우분할 */
   table.cal td.daycal{height:auto;min-height:78px;vertical-align:top;padding:4px;}
   .dayhead{display:flex;align-items:baseline;justify-content:center;gap:4px;margin-bottom:2px;}
+  .dayhead .erday{font-size:11px;font-weight:700;color:#C0392B;background:#FCEBEA;
+       border-radius:5px;padding:0 4px;line-height:1.5;white-space:nowrap;align-self:center;}
   .staffwrap{display:flex;flex-direction:column;gap:2px;}
   .staffrow{display:grid;grid-template-columns:62px 1fr 1fr;align-items:stretch;
        gap:2px;font-size:13px;}

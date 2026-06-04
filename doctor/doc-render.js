@@ -90,7 +90,25 @@
     }
   }
 
-  g.DocRender = { render: render, badgeStyle: badgeStyle, COLOR: COLOR };
+  // 엑셀 스타일 한 줄 텍스트 — 이름 제외(이름은 좌측 칸에 별도).
+  //   접두 (X)/D/N + 접미 괄호(내시경·협진·휴진·메모). 엑셀 원본 표기와 일치.
+  //   예: '(X)내시경', 'N휴진', 'D', '협진'. 빈 슬롯은 ''.
+  function lineText(cell){
+    cell = cell || {};
+    var pre = '';
+    if(cell.block) pre += '(X)';
+    if(cell.erCall === 'D') pre += 'D';
+    else if(cell.erCall === 'N') pre += 'N';
+    var tags = [];
+    if(cell.status === '휴진') tags.push('휴진');
+    if(cell.endo)    tags.push('내시경');
+    if(cell.consult) tags.push('협진');
+    if(cell.memo)    tags.push(String(cell.memo));
+    var suf = tags.length ? '('+tags.join('·')+')' : '';
+    return pre + suf;
+  }
+
+  g.DocRender = { render: render, badgeStyle: badgeStyle, lineText: lineText, COLOR: COLOR };
   g.__DOCRENDER_LOADED__ = true;
 
 })(window);

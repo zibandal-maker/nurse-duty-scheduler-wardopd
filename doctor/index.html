@@ -691,6 +691,11 @@ function renderCalendar(){
 
       html += '<td class="'+cls.join(' ')+'" data-day="'+d2+'">'
             +   '<div class="dayhead"><span class="daynum">'+d2+'</span>'
+            +   ((function(){
+                  var ini = (window.ErRosterStore) ? ErRosterStore.initial(viewY, viewM+1, d2) : '';
+                  var full = (window.ErRosterStore) ? ErRosterStore.name(viewY, viewM+1, d2) : '';
+                  return ini ? '<span class="erday" title="응급실 당직: '+escapeHtml(full)+'">🚑'+escapeHtml(ini)+'</span>' : '';
+                })())
             +   ((function(){var b=_birthdaysOnDay(d2);return b.length?'<span class="daycake" title="'+escapeHtml(b.map(function(x){return x.name;}).join(', '))+' 생일">🎂</span>':'';})())
             +   (hname ? '<span class="holiname">'+escapeHtml(hname)+'</span>' : '')
             +   ((function(){
@@ -736,9 +741,7 @@ function renderCalendar(){
   function renderDayDoctor(d){
     var members = (window.OutpatientAdapter) ? OutpatientAdapter.listMembers(WARD_ID)
                   : (window.PersonsStore ? PersonsStore.listByDept(WARD_ID) : []);
-    var erName = (window.ErRosterStore) ? ErRosterStore.name(viewY, viewM+1, d) : '';
-    var erHtml = erName ? '<div class="ercall" title="응급실 당직: '+escapeHtml(erName)+'">🚑 '+escapeHtml(erName)+'</div>' : '';
-    if(members.length===0) return erHtml;
+    if(members.length===0) return '';
     var rows = members.map(function(p){
       var pid=p.personId;
       var cell = DocScheduleStore.get(pid, viewY, viewM, d);
@@ -752,24 +755,21 @@ function renderCalendar(){
         +   '<span class="slot pm slotcell" data-pid="'+pid+'" data-day="'+d+'" data-slot="pm">'+slotBadge(cell.pm)+'</span>'
         + '</div>';
     });
-    return erHtml + '<div class="staffwrap">'+rows.join('')+'</div>';
+    return '<div class="staffwrap">'+rows.join('')+'</div>';
   }
   function slotBadge(slot){ return _slotBadge(slot); }
 }
 
-// 한 슬롯(오전/오후)의 6속성 표시 — doc-render 기반. 달력·명단형 공용.
+// 한 슬롯(오전/오후)의 6속성 표시 — 엑셀 스타일 한 줄 텍스트(이름 제외). 달력·명단형 공용.
 function _slotBadge(slot){
   if(!window.DocScheduleStore || DocScheduleStore.slotEmpty(slot)) return '<span class="empty">·</span>';
   var v = DocRender.render(slot);
-  var out='';
-  if(v.text) out += '<span class="ddn" style="color:'+v.textColor+'">'+v.text+'</span>';
-  v.badges.forEach(function(b){
-    var st=DocRender.badgeStyle(b.kind);
-    out += '<span class="db" style="background:'+st.bg+';color:'+st.fg+';border-color:'+st.bd+'">'+escapeHtml(b.short||b.label)+'</span>';
-  });
-  if(slot.memo) out += '<span class="dmemo">'+escapeHtml(slot.memo)+'</span>';
+  var txt = DocRender.lineText(slot);
+  // 텍스트 색: D/N 콜이 있고 다른 배경색(협진·내시경·휴진)이 없을 때만 콜 색, 그 외 본문색
+  var color = v.textColor;
   var lb = v.leftBar ? 'box-shadow:inset 3px 0 0 '+v.leftBar+';' : '';
-  return '<span class="badge'+(v.dim?' dim':'')+'" style="background:'+v.bg+';'+lb+'">'+(out||'<span class="empty">·</span>')+'</span>';
+  var inner = txt ? '<span class="dline" style="color:'+color+'">'+escapeHtml(txt)+'</span>' : '<span class="empty">·</span>';
+  return '<span class="badge'+(v.dim?' dim':'')+'" style="background:'+v.bg+';'+lb+'">'+inner+'</span>';
 }
 
 /* ── M2d: 출석부 매트릭스 (사람 × 날짜) ──
