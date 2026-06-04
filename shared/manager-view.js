@@ -60,9 +60,14 @@
       return { dept:dept, display:code, raw:code };   // D/E/N/O
     }
 
-    // 외래(비교대): membership 이 부서 id (outpatient_1 등) → cal_sched_<id> 에서 읽음
-    var cs = _read('cal_sched_' + dept);
-    var cell = cs[_cellKey(person.personId, y, m, d)] || null;
+    // 응급실: 소속이 ER 부서면 당직 장부(dv6_er_roster, 'y-m1-d'→pid)에서 읽음. 하루 1명 종일.
+    if(_isErDept(dept)){
+      var er = _readRaw('dv6_er_roster');   // {'2026-6-10': 'p_0001'}
+      var onDuty = er && er[y+'-'+(m+1)+'-'+d];
+      var isOn = (onDuty === person.personId);
+      return { dept:dept, display: isOn ? '당직' : '', raw: isOn ? {erDuty:true} : null };
+    }
+
     if(_isDoctor(dept)){
       // 의사: doc_sched_<id> 에서 6속성 슬롯 읽음. 표시는 콜/내시경/협진/휴진 등.
       var ds = _read('doc_sched_' + dept);
@@ -71,11 +76,23 @@
       var dlab = _docLabel(dcell);
       return { dept:dept, display:dlab, raw:dcell };
     }
+    // 외래·행정(비교대): membership 이 부서 id (outpatient_1 등) → cal_sched_<id> 에서 읽음
+    var cs = _read('cal_sched_' + dept);
+    var cell = cs[_cellKey(person.personId, y, m, d)] || null;
     if(!cell) return { dept:dept, display:'', raw:null };
     var am = cell.am && cell.am.code ? _outLabel(cell.am.code) : '';
     var pm = cell.pm && cell.pm.code ? _outLabel(cell.pm.code) : '';
     var disp = (am && pm) ? (am===pm ? am : am+'/'+pm) : (am || pm || '');
     return { dept:dept, display:disp, raw:cell };
+  }
+  // ER 부서 판정 — dv6_er_dept(raw 문자열)에 저장된 부서 id와 일치
+  function _isErDept(dept){
+    var erId = _readRaw('dv6_er_dept');   // raw 문자열(JSON 아님)
+    return !!dept && !!erId && dept === erId;
+  }
+  // raw 문자열 키 읽기 (JSON 파싱 시도, 실패 시 원문)
+  function _readRaw(key){
+    try{ var v=localStorage.getItem(key); if(v==null) return null; try{ return JSON.parse(v); }catch(_){ return v; } }catch(_){ return null; }
   }
   // 의사 부서 판정 + 의사 셀(오전/오후 6속성) → 짧은 라벨
   function _isDoctor(dept){ return /^doctor_\d+$/.test(dept); }
@@ -224,6 +241,15 @@
         var c = cellFor(p, y, m, d);
         if(_isDuty(dept)){
           if(c.display==='D'||c.display==='E'||c.display==='N') byDept[dept].workDays++;
+        } else if(_isErDept(dept)){
+          if(c.raw && c.raw.erDuty) byDept[dept].workDays++;   // ER: 당직 1일 = 1
+        } else if(_isDoctor(dept)){
+          // 의사: 휴진 아닌 입력 슬롯 = 근무 0.5씩
+          var dr=c.raw;
+          if(dr){
+            if(dr.am && dr.am.status!=='휴진' && (dr.am.work||dr.am.erCall||dr.am.endo||dr.am.consult)) byDept[dept].workDays+=0.5;
+            if(dr.pm && dr.pm.status!=='휴진' && (dr.pm.work||dr.pm.erCall||dr.pm.endo||dr.pm.consult)) byDept[dept].workDays+=0.5;
+          }
         } else {
           var raw = c.raw;
           if(raw){
