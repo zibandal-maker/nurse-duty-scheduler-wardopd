@@ -274,7 +274,7 @@ function renderRoster(){
       return '<div class="ncard'+(sel?' sel2':'')+'" id="oc-'+p.personId+'"'+dragAttrs+'>'
         + '<div class="nct">'
         +   '<span class="drag-handle" title="'+(sel?'편집 중 순서변경 불가':'드래그로 순서 변경')+'" onclick="event.stopPropagation()">⠿</span>'
-        +   '<span class="navatar-ph" style="background:'+col+'22;color:'+col+'" onclick="outToggleEdit(\''+p.personId+'\')">'+escapeHtml(initials(p.name))+'</span>'
+        +   '<span class="navatar-ph" style="background:'+col+'22;color:'+col+'" onclick="outToggleEdit(\''+p.personId+'\')">'+(p.photo?'<img src="'+escapeHtml(p.photo)+'" alt="">':escapeHtml(initials(p.name)))+'</span>'
         +   '<span class="ni2" onclick="outToggleEdit(\''+p.personId+'\')">'
         +     '<span class="ncn">'+escapeHtml(p.name||'(이름없음)')
         +       (spec?'<span class="rbadge">'+escapeHtml(spec)+'</span>':'')
